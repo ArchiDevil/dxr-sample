@@ -20,10 +20,10 @@ public:
     void Close();
 
     CommandListType GetType() const;
-    ComPtr<ID3D12GraphicsCommandList> GetInternal() const;
+    ComPtr<ID3D12GraphicsCommandList4> GetInternal() const;
 
 private:
-    ComPtr<ID3D12GraphicsCommandList>   _commandList = nullptr;
+    ComPtr<ID3D12GraphicsCommandList4>  _commandList = nullptr;
     ComPtr<ID3D12CommandAllocator>      _allocator = nullptr;
     ComPtr<ID3D12Device>                _device = nullptr;
     ComPtr<ID3D12PipelineState>         _initialState = nullptr;

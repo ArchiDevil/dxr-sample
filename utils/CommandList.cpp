@@ -42,7 +42,7 @@ CommandListType CommandList::GetType() const
     return _type;
 }
 
-ComPtr<ID3D12GraphicsCommandList> CommandList::GetInternal() const
+ComPtr<ID3D12GraphicsCommandList4> CommandList::GetInternal() const
 {
     return _commandList.Get();
 }

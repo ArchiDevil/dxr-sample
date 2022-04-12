@@ -17,15 +17,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     wchar_t ** argv = CommandLineToArgvW(GetCommandLine(), &argc);
 #endif
 
-    const std::map<std::wstring, optTypes> argumentToString = {
-        { L"--disable_bundles",               disable_bundles },
-        { L"--disable_concurrency",           disable_concurrency },
-        { L"--disable_root_constants",        disable_root_constants },
-        { L"--disable_textures",              disable_textures },
-        { L"--disable_shadow_pass",           disable_shadow_pass },
-        { L"--enable_tessellation",           enable_tessellation},
-        { L"--legacy_swapchain",              legacy_swapchain }
-    };
+    const std::map<std::wstring, optTypes> argumentToString = {};
 
     std::set<optTypes> arguments {};
     for (int i = 1; i < argc; ++i)
@@ -39,7 +31,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             arguments.insert(iter->second);
         else
         {
-            std::wcout << L"Usage: dx12_sample <opts>" << std::endl;
+            std::wcout << L"Usage: dxr_sample <opts>" << std::endl;
             std::wcout << L"where <opts>:" << std::endl;
             for (auto & pair : argumentToString)
             {

@@ -66,11 +66,4 @@ struct perFrameParamsConstantBuffer
 
 struct CommandLineOptions
 {
-    bool threads = true;
-    bool bundles = true;
-    bool root_constants = true;
-    bool shadow_pass = true;
-    bool textures = true;
-    bool tessellation = false;
-    bool legacy_swapchain = false;
 };

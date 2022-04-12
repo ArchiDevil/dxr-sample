@@ -7,11 +7,15 @@ set(SRC
     SceneManager.cpp
     SceneManager.h
     stdafx.h
+
+    Sample.hlsl # main library
 )
 
-add_executable(dx12_sample ${SRC})
+set_source_files_properties(Sample.hlsl PROPERTIES VS_SHADER_MODEL "6.3" VS_SHADER_TYPE "Library" VS_SHADER_ENTRYPOINT "")
 
-target_link_libraries(dx12_sample
+add_executable(dxr_sample ${SRC})
+
+target_link_libraries(dxr_sample
     3rdparty
     utils
     winpixruntime
@@ -19,9 +23,9 @@ target_link_libraries(dx12_sample
     d3d12.lib
     d3dcompiler.lib)
 
-set_target_properties(dx12_sample PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE")
-set_target_properties(dx12_sample PROPERTIES LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:WINDOWS")
-set_target_properties(dx12_sample PROPERTIES LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS")
-set_target_properties(dx12_sample PROPERTIES LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS")
+set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE")
+set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:WINDOWS")
+set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS")
+set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS")
 
-add_dependencies(dx12_sample copy_assets)
+add_dependencies(dxr_sample copy_assets)

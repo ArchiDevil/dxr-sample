@@ -23,11 +23,8 @@ private:
     void CreateDXGIFactory();
     void CreateDevice();
 
-    void CreateTexturesHeap();
     void CreateSwapChain();
     void CreateCommandQueue();
-    void CreateObjects();
-    void CreateTextures();
 
     void DumpFeatures();
 
@@ -37,24 +34,10 @@ private:
     CommandLineOptions                          _cmdLineOpts {};
 
     // Main sample parameters
-#ifdef _DEBUG
-    static constexpr size_t                     _objectsInRow = 5;
-#else
-    static constexpr size_t                     _objectsInRow = 10;
-#endif
-    static constexpr float                      _objDistance = 1.0f;
-    static constexpr size_t                     _drawObjectsCount = _objectsInRow * _objectsInRow * _objectsInRow;
     static constexpr size_t                     _swapChainBuffersCount = 2;
 
-    ComPtr<ID3D12Device>                        _device = nullptr;
+    ComPtr<ID3D12Device5>                       _device = nullptr;
     ComPtr<IDXGIFactory4>                       _DXFactory = nullptr;
     ComPtr<ID3D12CommandQueue>                  _cmdQueue = nullptr;
     ComPtr<IDXGISwapChain3>                     _swapChain = nullptr;
-
-    // Geometry meshes
-    std::vector<std::shared_ptr<SceneObject>>   _objects;
-    std::shared_ptr<SceneObject>                _plane = nullptr;
-
-    ComPtr<ID3D12DescriptorHeap>                _texturesHeap = nullptr;
-    std::array<ComPtr<ID3D12Resource>, 6>       _texture = {};
 };
