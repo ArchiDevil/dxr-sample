@@ -57,38 +57,7 @@ void SceneManager::DrawAll()
 {
     std::vector<ID3D12CommandList*> cmdListArray;
     cmdListArray.reserve(16); // just to avoid any allocations
-
-    ComPtr<ID3D12StateObjectProperties> props;
-    ThrowIfFailed(_raytracingState->QueryInterface(props.GetAddressOf()));
-
-    void* raygenTableData = nullptr;
-    ThrowIfFailed(_raygenTable->Map(0, nullptr, &raygenTableData));
-    memcpy(raygenTableData, props->GetShaderIdentifier(L"RayGenShader"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-
-    void* missTableData = nullptr;
-    ThrowIfFailed(_missTable->Map(0, nullptr, &missTableData));
-    memcpy(missTableData, props->GetShaderIdentifier(L"MissShader"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-
-    D3D12_DISPATCH_RAYS_DESC desc = {};
-    desc.Height = _screenHeight;
-    desc.Width = _screenWidth;
-    desc.Depth = 1;
-    desc.RayGenerationShaderRecord.StartAddress = _raygenTable->GetGPUVirtualAddress();
-    desc.RayGenerationShaderRecord.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-    desc.MissShaderTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-    desc.MissShaderTable.StartAddress = _missTable->GetGPUVirtualAddress();
-    desc.MissShaderTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-
-    _cmdList->Reset();
-    _cmdList->GetInternal()->SetPipelineState1(_raytracingState.Get());
-
-    ID3D12DescriptorHeap* heap = _rtsHeap.Get();
-    _cmdList->GetInternal()->SetDescriptorHeaps(1, &heap);
-    _cmdList->GetInternal()->SetComputeRootSignature(_globalRootSignature.GetInternal().Get());
-    _cmdList->GetInternal()->SetComputeRootDescriptorTable(0, heap->GetGPUDescriptorHandleForHeapStart());
-    _cmdList->GetInternal()->DispatchRays(&desc);
-    _cmdList->Close();
-
+    PopulateCommandList();
     cmdListArray.push_back(_cmdList->GetInternal().Get());
 
     _cmdQueue->ExecuteCommandLists(1, cmdListArray.data());
@@ -130,6 +99,8 @@ void SceneManager::WaitCurrentFrame()
 void SceneManager::CreateRenderTargets()
 {
     _swapChainRTs = _rtManager->CreateRenderTargetsForSwapChain(_swapChain);
+
+    _HDRRt = _rtManager->CreateRenderTarget(DXGI_FORMAT_R8G8B8A8_UNORM, _screenWidth, _screenHeight, L"HDRRT", true);
 
     D3D12_RESOURCE_DESC dxrOutputDesc = {};
     dxrOutputDesc.Width = _screenWidth;
@@ -196,6 +167,68 @@ void SceneManager::CreateShaderTables()
     ThrowIfFailed(_device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
         &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
         IID_PPV_ARGS(&_raygenTable)));
+}
+
+void SceneManager::PopulateCommandList()
+{
+    ComPtr<ID3D12StateObjectProperties> props;
+    ThrowIfFailed(_raytracingState->QueryInterface(props.GetAddressOf()));
+
+    void* raygenTableData = nullptr;
+    ThrowIfFailed(_raygenTable->Map(0, nullptr, &raygenTableData));
+    memcpy(raygenTableData, props->GetShaderIdentifier(L"RayGenShader"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+
+    void* missTableData = nullptr;
+    ThrowIfFailed(_missTable->Map(0, nullptr, &missTableData));
+    memcpy(missTableData, props->GetShaderIdentifier(L"MissShader"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+
+    D3D12_DISPATCH_RAYS_DESC desc = {};
+    desc.Height = _screenHeight;
+    desc.Width = _screenWidth;
+    desc.Depth = 1;
+    desc.RayGenerationShaderRecord.StartAddress = _raygenTable->GetGPUVirtualAddress();
+    desc.RayGenerationShaderRecord.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+    desc.MissShaderTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+    desc.MissShaderTable.StartAddress = _missTable->GetGPUVirtualAddress();
+    desc.MissShaderTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+
+    _cmdList->Reset();
+    _cmdList->GetInternal()->SetPipelineState1(_raytracingState.Get());
+
+    ID3D12DescriptorHeap* heap = _rtsHeap.Get();
+    _cmdList->GetInternal()->SetDescriptorHeaps(1, &heap);
+    _cmdList->GetInternal()->SetComputeRootSignature(_globalRootSignature.GetInternal().Get());
+    _cmdList->GetInternal()->SetComputeRootDescriptorTable(0, heap->GetGPUDescriptorHandleForHeapStart());
+    _cmdList->GetInternal()->DispatchRays(&desc);
+
+    {
+        auto transition = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[_frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        _cmdList->GetInternal()->ResourceBarrier(1, &transition);
+    }
+
+    RenderTarget* rts[8] = { _HDRRt.get() };
+    auto rtBuffer = _swapChainRTs[_frameIndex].get();
+    _rtManager->BindRenderTargets(rts, nullptr, *_cmdList);
+    _rtManager->ClearRenderTarget(*rtBuffer, *_cmdList);
+
+    {
+        std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
+        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[_frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
+        transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
+    }
+
+    _cmdList->GetInternal()->CopyResource(rtBuffer->_texture.Get(), _raytracingOutput.Get());
+
+    // Indicate that the back buffer will be used as a render target.
+    {
+        std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
+        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[_frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
+        transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
+    }
+
+    _cmdList->Close();
 }
 
 void SceneManager::CreateCommandLists()

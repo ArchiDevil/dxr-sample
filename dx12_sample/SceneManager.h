@@ -81,4 +81,5 @@ private:
     UINT                                        _screenHeight = 0;
     std::vector<std::shared_ptr<RenderTarget>>  _swapChainRTs;
     RenderTargetManager *                       _rtManager = nullptr;
+    std::shared_ptr<RenderTarget>               _HDRRt = nullptr;
 };
