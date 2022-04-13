@@ -115,9 +115,11 @@ void DX12Sample::CreateDXGIFactory()
 
 void DX12Sample::CreateDevice()
 {
-    // ComPtr<IDXGIAdapter1> hardwareAdapter;
-    // GetHardwareAdapter(_DXFactory.Get(), &hardwareAdapter);
-    ThrowIfFailed(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&_device)));
+    ComPtr<IDXGIAdapter1> hardwareAdapter;
+    GetHardwareAdapter(_DXFactory.Get(), &hardwareAdapter);
+    if (!hardwareAdapter)
+        throw std::runtime_error("DirectX Raytracing is not supported by your OS, GPU and /or driver.");
+    ThrowIfFailed(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&_device)));
 }
 
 void DX12Sample::CreateCommandQueue()

@@ -100,6 +100,17 @@ std::wstring DXSample::GetAssetFullPath(LPCWSTR assetName)
 	return m_assetsPath + assetName;
 }
 
+// Returns bool whether the device supports DirectX Raytracing tier.
+bool IsDirectXRaytracingSupported(IDXGIAdapter1* adapter)
+{
+	ComPtr<ID3D12Device> testDevice;
+	D3D12_FEATURE_DATA_D3D12_OPTIONS5 featureSupportData = {};
+
+	return SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&testDevice)))
+		&& SUCCEEDED(testDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &featureSupportData, sizeof(featureSupportData)))
+		&& featureSupportData.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
+}
+
 // Helper function for acquiring the first available hardware adapter that supports Direct3D 12.
 // If no such adapter can be found, *ppAdapter will be set to nullptr.
 void DXSample::GetHardwareAdapter(_In_ IDXGIFactory4* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter)
@@ -119,12 +130,10 @@ void DXSample::GetHardwareAdapter(_In_ IDXGIFactory4* pFactory, _Outptr_result_m
 			continue;
 		}
 
-		// Check to see if the adapter supports Direct3D 12, but don't create the
+		// Check to see if the adapter supports Direct3D 12 and DXR, but don't create the
 		// actual device yet.
-		if (SUCCEEDED(D3D12CreateDevice(pAdapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
-		{
+		if (IsDirectXRaytracingSupported(pAdapter))
 			break;
-		}
 	}
 
 	*ppAdapter = pAdapter;
