@@ -13,6 +13,8 @@
 
 #include "comdef.h"
 
+#include <algorithm>
+
 inline void ThrowIfFailed(HRESULT hr)
 {
     if (SUCCEEDED(hr))
@@ -20,7 +22,8 @@ inline void ThrowIfFailed(HRESULT hr)
 
     _com_error err(hr);
     std::wstring errorMessage = err.ErrorMessage();
-    std::string converted = { errorMessage.begin(), errorMessage.end() };
+    std::string converted;
+    std::transform(errorMessage.begin(), errorMessage.end(), std::back_inserter(converted), [](const wchar_t& wch) {return (char)wch; });
     throw std::runtime_error(converted);
 }
 
