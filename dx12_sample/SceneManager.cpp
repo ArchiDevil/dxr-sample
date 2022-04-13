@@ -112,8 +112,6 @@ void SceneManager::CreateRenderTargets()
 {
     _swapChainRTs = _rtManager->CreateRenderTargetsForSwapChain(_swapChain);
 
-    _HDRRt = _rtManager->CreateRenderTarget(DXGI_FORMAT_R8G8B8A8_UNORM, _screenWidth, _screenHeight, L"HDRRT", true);
-
     D3D12_RESOURCE_DESC dxrOutputDesc = {};
     dxrOutputDesc.Width = _screenWidth;
     dxrOutputDesc.Height = _screenHeight;
@@ -202,9 +200,7 @@ void SceneManager::PopulateCommandList()
         _cmdList->GetInternal()->ResourceBarrier(1, &transition);
     }
 
-    RenderTarget* rts[8] = { _HDRRt.get() };
     auto rtBuffer = _swapChainRTs[_frameIndex].get();
-    _rtManager->BindRenderTargets(rts, nullptr, *_cmdList);
     _rtManager->ClearRenderTarget(*rtBuffer, *_cmdList);
 
     {
@@ -357,5 +353,9 @@ void SceneManager::UpdateObjects()
 
     DirectX::XMFLOAT4 camPos = _mainCamera.GetEyePosition();
     DirectX::XMVECTOR m = { camPos.x, camPos.y, camPos.z, camPos.w };
+
+    DirectX::XMMATRIX projMat = _mainCamera.GetProjMatrix();
+
     ((ViewParams*)sceneData)->viewPos = m;
+    ((ViewParams*)sceneData)->inverseViewProj = DirectX::XMMatrixInverse(nullptr, projMat);
 }
