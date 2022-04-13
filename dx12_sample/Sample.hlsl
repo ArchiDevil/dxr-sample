@@ -1,3 +1,5 @@
+#include "Common.h"
+
 struct RayPayload
 {
     float4 color;
@@ -5,6 +7,8 @@ struct RayPayload
 
 RWTexture2D<float4> output : register(u0); // render target
 RaytracingAccelerationStructure scene : register(t0, space0);
+
+ConstantBuffer<ViewParams> sceneParams : register(b0);
 
 [shader("raygeneration")]
 void RayGenShader()
@@ -19,7 +23,7 @@ void RayGenShader()
 
     TraceRay(scene, 0, 0, 0, 0, 0, desc, payload);
 
-    output[launchIndex.xy] = payload.color;
+    output[launchIndex.xy] = normalize(sceneParams.viewPos + payload.color);
 }
 
 [shader("miss")]

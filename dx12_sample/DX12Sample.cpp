@@ -71,6 +71,9 @@ void DX12Sample::OnUpdate()
 
     static double time = 0;
     time += dt;
+
+    _sceneManager->GetCamera().SetInclination(time * 3.0f);
+    _sceneManager->GetCamera().SetRotation(time * 3.0f);
 }
 
 void DX12Sample::OnRender()
@@ -113,7 +116,7 @@ void DX12Sample::CreateDXGIFactory()
 void DX12Sample::CreateDevice()
 {
     // ComPtr<IDXGIAdapter1> hardwareAdapter;
-    // GetHardwareAdapter(pDXFactory.Get(), &hardwareAdapter);
+    // GetHardwareAdapter(_DXFactory.Get(), &hardwareAdapter);
     ThrowIfFailed(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&_device)));
 }
 

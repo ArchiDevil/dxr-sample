@@ -8,6 +8,7 @@ set(SRC
     SceneManager.h
     stdafx.h
 
+    Common.h # HLSL <-> C++ translation
     Sample.hlsl # main library
 )
 

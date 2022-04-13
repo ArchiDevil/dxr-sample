@@ -26,6 +26,7 @@ public:
     XMMATRIX GetProjMatrix() const;
     XMMATRIX GetViewProjMatrix() const;
     XMFLOAT4 GetEyePosition() const;
+    XMFLOAT4 GetEyeDirection() const;
 
 private:
     void UpdateMatrices();

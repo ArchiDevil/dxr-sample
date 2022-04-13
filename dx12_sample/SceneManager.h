@@ -36,6 +36,8 @@ public:
     // only for texture creation!
     void ExecuteCommandLists(const CommandList & commandList);
 
+    Graphics::SphericalCamera& GetCamera();
+
 private:
     void CreateCommandLists();
     void CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource> * pOutBuffer);
@@ -43,8 +45,11 @@ private:
     void CreateRootSignatures();
     void CreateRenderTargets();
     void CreateShaderTables();
+    void CreateFrameResources();
 
+    void UpdateObjects();
     void PopulateCommandList();
+
     void WaitCurrentFrame();
 
     // context objects
@@ -76,10 +81,14 @@ private:
     ComPtr<ID3D12DescriptorHeap>                _rtsHeap = nullptr;
     ComPtr<ID3D12Resource>                      _raytracingOutput = nullptr;
 
+    // frame resources
+    ComPtr<ID3D12Resource>                      _viewParams = nullptr;
+
     // other objects from outside
     UINT                                        _screenWidth = 0;
     UINT                                        _screenHeight = 0;
     std::vector<std::shared_ptr<RenderTarget>>  _swapChainRTs;
     RenderTargetManager *                       _rtManager = nullptr;
     std::shared_ptr<RenderTarget>               _HDRRt = nullptr;
+    Graphics::SphericalCamera                   _mainCamera;
 };

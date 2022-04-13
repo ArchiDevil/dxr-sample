@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+#include "Common.h"
 #include "SceneManager.h"
 
 #include <utils/RenderTargetManager.h>
@@ -27,11 +28,15 @@ SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
     , _frameIndex(pSwapChain->GetCurrentBackBufferIndex())
     , _swapChainRTs(_swapChainRTs)
     , _rtManager(rtManager)
+    , _mainCamera(Graphics::ProjectionType::Perspective, 0.1f, 1000.f, 5.0f * pi / 18.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight))
 {
     assert(pDevice);
     assert(pCmdQueue);
     assert(pSwapChain);
     assert(rtManager);
+
+    _mainCamera.SetCenter({ 0.0f, 0.0f, 0.0f });
+    _mainCamera.SetRadius(5.0f);
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
 
@@ -41,6 +46,7 @@ SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
                                        IID_PPV_ARGS(&_frameFence)));
     _frameEndEvent = CreateEvent(NULL, FALSE, FALSE, nullptr);
 
+    CreateFrameResources();
     CreateRenderTargets();
     CreateRootSignatures();
     CreateRaytracingPSO();
@@ -57,6 +63,7 @@ void SceneManager::DrawAll()
 {
     std::vector<ID3D12CommandList*> cmdListArray;
     cmdListArray.reserve(16); // just to avoid any allocations
+    UpdateObjects();
     PopulateCommandList();
     cmdListArray.push_back(_cmdList->GetInternal().Get());
 
@@ -77,6 +84,11 @@ void SceneManager::ExecuteCommandLists(const CommandList & commandList)
 
     _fenceValue++;
     WaitCurrentFrame();
+}
+
+Graphics::SphericalCamera& SceneManager::GetCamera()
+{
+    return _mainCamera;
 }
 
 void SceneManager::WaitCurrentFrame()
@@ -148,25 +160,8 @@ void SceneManager::CreateRenderTargets()
 
 void SceneManager::CreateShaderTables()
 {
-    D3D12_HEAP_PROPERTIES heapProps = {};
-    heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
-
-    D3D12_RESOURCE_DESC desc = {};
-    desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    desc.Width = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES; // only 1 shader here without params
-    desc.Height = 1;
-    desc.DepthOrArraySize = 1;
-    desc.MipLevels = 1;
-    desc.SampleDesc.Count = 1;
-    desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-
-    ThrowIfFailed(_device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
-        &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-        IID_PPV_ARGS(&_missTable)));
-
-    ThrowIfFailed(_device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
-        &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-        IID_PPV_ARGS(&_raygenTable)));
+    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_missTable);
+    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_raygenTable);
 }
 
 void SceneManager::PopulateCommandList()
@@ -199,6 +194,7 @@ void SceneManager::PopulateCommandList()
     _cmdList->GetInternal()->SetDescriptorHeaps(1, &heap);
     _cmdList->GetInternal()->SetComputeRootSignature(_globalRootSignature.GetInternal().Get());
     _cmdList->GetInternal()->SetComputeRootDescriptorTable(0, heap->GetGPUDescriptorHandleForHeapStart());
+    _cmdList->GetInternal()->SetComputeRootConstantBufferView(1, _viewParams->GetGPUVirtualAddress());
     _cmdList->GetInternal()->DispatchRays(&desc);
 
     {
@@ -341,9 +337,25 @@ void SceneManager::CreateRaytracingPSO()
 
 void SceneManager::CreateRootSignatures()
 {
-    _globalRootSignature.Init(1, 0);
+    _globalRootSignature.Init(2, 0);
     _globalRootSignature[0].InitAsDescriptorsTable(2); // Output UAV
     _globalRootSignature[0].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
     _globalRootSignature[0].InitTableRange(1, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
+    _globalRootSignature[1].InitAsCBV(0);
     _globalRootSignature.Finalize(_device);
+}
+
+void SceneManager::CreateFrameResources()
+{
+    CreateConstantBuffer(sizeof(ViewParams), &_viewParams);
+}
+
+void SceneManager::UpdateObjects()
+{
+    void* sceneData = nullptr;
+    ThrowIfFailed(_viewParams->Map(0, nullptr, &sceneData));
+
+    DirectX::XMFLOAT4 camPos = _mainCamera.GetEyePosition();
+    DirectX::XMVECTOR m = { camPos.x, camPos.y, camPos.z, camPos.w };
+    ((ViewParams*)sceneData)->viewPos = m;
 }
