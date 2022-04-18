@@ -8,14 +8,7 @@ __declspec(align(16)) class SceneObject
 {
 public:
     SceneObject(std::shared_ptr<MeshObject> meshObject,
-                ComPtr<ID3D12Device> pDevice,
-                ComPtr<ID3D12PipelineState> pPSO);
-
-    virtual ~SceneObject();
-
-    void Draw(const ComPtr<ID3D12GraphicsCommandList> & pCmdList, bool bundleUsingOverride = false);
-
-    const XMMATRIX& GetWorldMatrix() const;
+                ComPtr<ID3D12Device> pDevice);
 
     DirectX::XMFLOAT3 Position() const;
     void Position(DirectX::XMFLOAT3 val);
@@ -37,9 +30,13 @@ public:
     }
 
     ComPtr<ID3D12Resource> GetConstantBuffer() const;
+    const XMMATRIX& GetWorldMatrix() const;
+    const ComPtr<ID3D12Resource>& GetBLAS() const;
+
+    bool IsDirty() const;
+    void ResetDirty();
 
 private:
-    void CreateBundleList(ComPtr<ID3D12PipelineState> pPSO);
     void CalculateWorldMatrix();
 
     std::shared_ptr<MeshObject>         _meshObject = nullptr;
@@ -50,10 +47,8 @@ private:
     XMMATRIX                            _worldMatrix = XMMatrixIdentity();
 
     ComPtr<ID3D12Resource>              _constantBuffer = nullptr;
+    ComPtr<ID3D12Resource>              _blas = nullptr;
     ComPtr<ID3D12Device>                _device = nullptr;
-    ComPtr<ID3D12CommandAllocator>      _bundleCmdAllocator = nullptr;
-    ComPtr<ID3D12GraphicsCommandList>   _drawBundle = nullptr;
 
-    bool                                _useBundles = false;
     bool                                _transformDirty = true;
 };

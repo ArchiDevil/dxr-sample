@@ -40,7 +40,8 @@ public:
 
 private:
     void CreateCommandLists();
-    void CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource> * pOutBuffer);
+    void CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState);
+    void CreateUAVBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState);
     void CreateRaytracingPSO();
     void CreateRootSignatures();
     void CreateRenderTargets();
@@ -83,6 +84,7 @@ private:
 
     // frame resources
     ComPtr<ID3D12Resource>                      _viewParams = nullptr;
+    ComPtr<ID3D12Resource>                      _tlas       = nullptr;
 
     // other objects from outside
     UINT                                        _screenWidth = 0;
@@ -91,4 +93,7 @@ private:
     RenderTargetManager *                       _rtManager = nullptr;
     std::shared_ptr<RenderTarget>               _HDRRt = nullptr;
     Graphics::SphericalCamera                   _mainCamera;
+    MeshManager                                 _meshManager;
+    std::vector<SceneObjectPtr>                 _sceneObjects;
+    void                                        BuildTLAS();
 };

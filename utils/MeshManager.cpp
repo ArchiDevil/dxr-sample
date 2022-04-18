@@ -81,14 +81,30 @@ static const std::vector<geometryVertex> vertices =
     {{0.5f,  0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
 };
 
-MeshObject::MeshObject(const std::vector<uint8_t>& vertex_data,
-                       size_t stride,
-                       const std::vector<uint32_t>& index_data,
-                       ComPtr<ID3D12Device> pDevice,
-                       D3D_PRIMITIVE_TOPOLOGY topology)
+void CreateUAVBuffer(ComPtr<ID3D12Device5> device, size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState)
+{
+    D3D12_RESOURCE_DESC bufferDesc = {};
+    bufferDesc.Dimension           = D3D12_RESOURCE_DIMENSION_BUFFER;
+    bufferDesc.Width               = bufferSize;
+    bufferDesc.Height              = 1;
+    bufferDesc.MipLevels           = 1;
+    bufferDesc.SampleDesc.Count    = 1;
+    bufferDesc.DepthOrArraySize    = 1;
+    bufferDesc.Layout              = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    bufferDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+    D3D12_HEAP_PROPERTIES heapProp = {D3D12_HEAP_TYPE_DEFAULT};
+    ThrowIfFailed(device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &bufferDesc, initialState, nullptr,
+                                                  IID_PPV_ARGS(&(*pOutBuffer))));
+}
+
+MeshObject::MeshObject(const std::vector<uint8_t>&       vertex_data,
+                       size_t                            stride,
+                       const std::vector<uint32_t>&      index_data,
+                       ComPtr<ID3D12Device5>             device,
+                       bool                              createBlas/*      = true*/,
+                       std::function<void(CommandList&)> cmdListExecutor/* = {}*/)
     : _indicesCount(index_data.size())
-    , _device(pDevice)
-    , _topology(topology)
     , _verticesCount(vertex_data.size() / stride)
 {
     D3D12_HEAP_PROPERTIES heapProp = {D3D12_HEAP_TYPE_UPLOAD};
@@ -102,17 +118,12 @@ MeshObject::MeshObject(const std::vector<uint8_t>& vertex_data,
     vertexBufferDesc.DepthOrArraySize = 1;
     vertexBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-    ThrowIfFailed(pDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &vertexBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_vertexBuffer)));
+    ThrowIfFailed(device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &vertexBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_vertexBuffer)));
 
     void * bufPtr = nullptr;
     ThrowIfFailed(_vertexBuffer->Map(0, nullptr, &bufPtr));
     std::memcpy(bufPtr, vertex_data.data(), vertex_data.size());
     _vertexBuffer->Unmap(0, nullptr);
-
-    // creating view describing how to use vertex buffer for GPU
-    _vertexBufferView.BufferLocation = _vertexBuffer->GetGPUVirtualAddress();
-    _vertexBufferView.SizeInBytes = (UINT)vertex_data.size();
-    _vertexBufferView.StrideInBytes = (UINT)stride;
 
     if (!index_data.empty())
     {
@@ -125,17 +136,63 @@ MeshObject::MeshObject(const std::vector<uint8_t>& vertex_data,
         indexBufferDesc.DepthOrArraySize = 1;
         indexBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-        ThrowIfFailed(pDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &indexBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_indexBuffer)));
+        ThrowIfFailed(device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &indexBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_indexBuffer)));
 
         ThrowIfFailed(_indexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&bufPtr)));
         std::memcpy(bufPtr, index_data.data(), index_data.size() * sizeof(uint32_t));
         _indexBuffer->Unmap(0, nullptr);
-
-        // creating view describing how to use vertex buffer for GPU
-        _indexBufferView.BufferLocation = _indexBuffer->GetGPUVirtualAddress();
-        _indexBufferView.SizeInBytes = (UINT)(index_data.size() * sizeof(uint32_t));
-        _indexBufferView.Format = DXGI_FORMAT_R32_UINT;
     }
+
+    //////////////////////////////////////////////////////////////////////////
+
+    if (!createBlas)
+        return;
+
+    assert(cmdListExecutor);
+
+    CommandList cmdList{CommandListType::Direct, device };
+
+    D3D12_RAYTRACING_GEOMETRY_DESC geoDesc = {};
+    geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+    geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+    geoDesc.Triangles.VertexBuffer.StartAddress = _vertexBuffer->GetGPUVirtualAddress();
+    geoDesc.Triangles.VertexBuffer.StrideInBytes = (UINT)stride;
+    geoDesc.Triangles.VertexCount = _verticesCount;
+    geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT; // TODO (DB): understand what it is
+    geoDesc.Triangles.IndexBuffer = _indexBuffer->GetGPUVirtualAddress();
+    geoDesc.Triangles.IndexCount = _indicesCount;
+    geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blasDesc = {};
+    auto&                                              inputs   = blasDesc.Inputs;
+
+    inputs.Type        = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+    inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    // TODO (DB): check what flags we have and how we could use it
+    inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+    // TODO (DB): update to the correct number of objects
+    inputs.NumDescs       = 1;
+    inputs.pGeometryDescs = &geoDesc;
+
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo = {};
+    device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuildInfo);
+    if (prebuildInfo.ResultDataMaxSizeInBytes == 0)
+        throw std::runtime_error("Zeroed size");
+
+    ComPtr<ID3D12Resource> scratchResource;
+    CreateUAVBuffer(device, prebuildInfo.ScratchDataSizeInBytes, &scratchResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    CreateUAVBuffer(device, prebuildInfo.ResultDataMaxSizeInBytes, &_blas, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+    _blas->SetName(L"Bottom-Level Acceleration Structure");
+
+    {
+        blasDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+        blasDesc.DestAccelerationStructureData    = _blas->GetGPUVirtualAddress();
+    }
+
+    cmdList.GetInternal()->BuildRaytracingAccelerationStructure(&blasDesc, 0, nullptr);
+    cmdList.Close();
+
+    cmdListExecutor(cmdList);
 }
 
 const Microsoft::WRL::ComPtr<ID3D12Resource>& MeshObject::VertexBuffer() const
@@ -143,24 +200,14 @@ const Microsoft::WRL::ComPtr<ID3D12Resource>& MeshObject::VertexBuffer() const
     return _vertexBuffer;
 }
 
-const D3D12_VERTEX_BUFFER_VIEW& MeshObject::VertexBufferView() const
-{
-    return _vertexBufferView;
-}
-
 const Microsoft::WRL::ComPtr<ID3D12Resource>& MeshObject::IndexBuffer() const
 {
     return _indexBuffer;
 }
 
-const D3D12_INDEX_BUFFER_VIEW& MeshObject::IndexBufferView() const
+const ComPtr<ID3D12Resource>& MeshObject::BLAS() const
 {
-    return _indexBufferView;
-}
-
-D3D_PRIMITIVE_TOPOLOGY MeshObject::TopologyType() const
-{
-    return _topology;
+    return _blas;
 }
 
 size_t MeshObject::VerticesCount() const
@@ -175,9 +222,8 @@ size_t MeshObject::IndicesCount() const
 
 //////////////////////////////////////////////////////////////////////////
 
-MeshManager::MeshManager(bool tessellationEnabled, ComPtr<ID3D12Device> device)
-    : _tessellationEnabled(tessellationEnabled)
-    , _device(device)
+MeshManager::MeshManager(ComPtr<ID3D12Device5> device)
+    : _device(device)
 {
 }
 
@@ -186,7 +232,7 @@ std::shared_ptr<MeshObject> MeshManager::LoadMesh(const std::string& filename)
     throw std::runtime_error("Not implemented yet");
 }
 
-std::shared_ptr<MeshObject> MeshManager::CreateCube()
+std::shared_ptr<MeshObject> MeshManager::CreateCube(std::function<void(CommandList&)> cmdListExecutor)
 {
     if (_cube)
         return _cube;
@@ -213,27 +259,18 @@ std::shared_ptr<MeshObject> MeshManager::CreateCube()
         22, 23, 21
     };
 
-    if (_tessellationEnabled)
-    {
-        _cube = std::make_shared<MeshObject>(std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-                                                        sizeof(geometryVertex),
-                                                        indices,
-                                                        _device,
-                                                        D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST);
-    }
-    else
-    {
-        _cube = std::make_shared<MeshObject>(std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-                                                        sizeof(geometryVertex),
-                                                        indices,
-                                                        _device,
-                                                        D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    }
+    _cube = std::make_shared<MeshObject>(
+        std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
+        sizeof(geometryVertex),
+        indices,
+        _device,
+        true,
+        cmdListExecutor);
 
     return _cube;
 }
 
-std::shared_ptr<MeshObject> MeshManager::CreateEmptyCube()
+std::shared_ptr<MeshObject> MeshManager::CreateEmptyCube(std::function<void(CommandList&)> cmdListExecutor)
 {
     if (_emptyCube)
         return _emptyCube;
@@ -262,32 +299,19 @@ std::shared_ptr<MeshObject> MeshManager::CreateEmptyCube()
         24 + 23, 24 + 22, 24 + 21
     };
 
-    if (_tessellationEnabled)
-    {
-        _emptyCube = std::make_shared<MeshObject>(std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-                                                  sizeof(geometryVertex),
-                                                  indices,
-                                                  _device,
-                                                  D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST);
-    }
-    else
-    {
-        _emptyCube = std::make_shared<MeshObject>(std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-                                                  sizeof(geometryVertex),
-                                                  indices,
-                                                  _device,
-                                                  D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    }
+    _emptyCube = std::make_shared<MeshObject>(
+        std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
+        sizeof(geometryVertex), indices, _device, true, cmdListExecutor);
 
     return _emptyCube;
 }
 
-std::shared_ptr<MeshObject> MeshManager::CreateSphere()
+std::shared_ptr<MeshObject> MeshManager::CreateSphere(std::function<void(CommandList&)> cmdListExecutor)
 {
     throw std::runtime_error("Not implemented yet");
 }
 
-std::shared_ptr<MeshObject> MeshManager::CreatePlane()
+std::shared_ptr<MeshObject> MeshManager::CreatePlane(std::function<void(CommandList&)> cmdListExecutor)
 {
     if (_plane)
         return _plane;
@@ -306,22 +330,9 @@ std::shared_ptr<MeshObject> MeshManager::CreatePlane()
         0, 2, 3
     };
 
-    if (_tessellationEnabled)
-    {
-        _plane = std::make_shared<MeshObject>(std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-                                              sizeof(geometryVertex),
-                                              indices,
-                                              _device,
-                                              D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST);
-    }
-    else
-    {
-        _plane = std::make_shared<MeshObject>(std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-                                              sizeof(geometryVertex),
-                                              indices,
-                                              _device,
-                                              D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    }
+    _plane = std::make_shared<MeshObject>(
+        std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
+        sizeof(geometryVertex), indices, _device, true, cmdListExecutor);
 
     return _plane;
 }
@@ -344,8 +355,7 @@ std::shared_ptr<MeshObject> MeshManager::CreateScreenQuad()
     _screenQuad = std::make_shared<MeshObject>(std::vector<uint8_t>{(uint8_t*)sqVertices.data(), (uint8_t*)(sqVertices.data() + sqVertices.size())},
                                                sizeof(screenQuadVertex),
                                                std::vector<uint32_t>{},
-                                               _device,
-                                               D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                                               _device, false);
 
     return _screenQuad;
 }

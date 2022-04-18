@@ -5,7 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(.)
+
 add_compile_definitions(UNICODE)
+add_compile_options(/MP)
+
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
 

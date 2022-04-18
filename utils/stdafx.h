@@ -23,6 +23,7 @@
 #include <fstream>
 #include <thread>
 #include <unordered_map>
+#include <functional>
 
 #include "DXSampleHelper.h"
 

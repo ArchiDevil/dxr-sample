@@ -1,15 +1,15 @@
 #include "stdafx.h"
 
-#include "Common.h"
 #include "SceneManager.h"
+
+#include "Common.h"
 
 #include <utils/RenderTargetManager.h>
 #include <utils/Shaders.h>
 
-#include <random>
-#include <iostream>
-
 #include <filesystem>
+#include <iostream>
+#include <random>
 
 constexpr auto pi = 3.14159265f;
 
@@ -29,6 +29,7 @@ SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
     , _swapChainRTs(_swapChainRTs)
     , _rtManager(rtManager)
     , _mainCamera(Graphics::ProjectionType::Perspective, 0.1f, 1000.f, 5.0f * pi / 18.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight))
+    , _meshManager(pDevice)
 {
     assert(pDevice);
     assert(pCmdQueue);
@@ -52,6 +53,16 @@ SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
     CreateRaytracingPSO();
     CreateShaderTables();
     CreateCommandLists();
+
+    _sceneObjects.push_back(std::make_shared<SceneObject>(
+        _meshManager.CreateEmptyCube([this](CommandList& cmdList) { ExecuteCommandLists(cmdList); }), _device));
+    _sceneObjects.back()->Rotation(0.5f);
+
+    _sceneObjects.push_back(std::make_shared<SceneObject>(
+        _meshManager.CreateCube([this](CommandList& cmdList) { ExecuteCommandLists(cmdList); }), _device));
+    _sceneObjects.back()->Position({2.0, 0.0, 0.0});
+
+    BuildTLAS();
 }
 
 SceneManager::~SceneManager()
@@ -158,8 +169,8 @@ void SceneManager::CreateRenderTargets()
 
 void SceneManager::CreateShaderTables()
 {
-    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_missTable);
-    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_raygenTable);
+    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_missTable, D3D12_RESOURCE_STATE_GENERIC_READ);
+    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_raygenTable, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 void SceneManager::PopulateCommandList()
@@ -229,24 +240,37 @@ void SceneManager::CreateCommandLists()
     _cmdList->Close();
 }
 
-void SceneManager::CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer)
+void SceneManager::CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState)
 {
     D3D12_RESOURCE_DESC constantBufferDesc = {};
-    constantBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    constantBufferDesc.Width = bufferSize;
-    constantBufferDesc.Height = 1;
-    constantBufferDesc.MipLevels = 1;
-    constantBufferDesc.SampleDesc.Count = 1;
-    constantBufferDesc.DepthOrArraySize = 1;
-    constantBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    constantBufferDesc.Dimension           = D3D12_RESOURCE_DIMENSION_BUFFER;
+    constantBufferDesc.Width               = bufferSize;
+    constantBufferDesc.Height              = 1;
+    constantBufferDesc.MipLevels           = 1;
+    constantBufferDesc.SampleDesc.Count    = 1;
+    constantBufferDesc.DepthOrArraySize    = 1;
+    constantBufferDesc.Layout              = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-    D3D12_HEAP_PROPERTIES heapProp = { D3D12_HEAP_TYPE_UPLOAD };
-    ThrowIfFailed(_device->CreateCommittedResource(&heapProp,
-        D3D12_HEAP_FLAG_NONE,
-        &constantBufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&(*pOutBuffer))));
+    D3D12_HEAP_PROPERTIES heapProp = {D3D12_HEAP_TYPE_UPLOAD};
+    ThrowIfFailed(_device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &constantBufferDesc, initialState,
+                                                   nullptr, IID_PPV_ARGS(&(*pOutBuffer))));
+}
+
+void SceneManager::CreateUAVBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState)
+{
+    D3D12_RESOURCE_DESC bufferDesc = {};
+    bufferDesc.Dimension           = D3D12_RESOURCE_DIMENSION_BUFFER;
+    bufferDesc.Width               = bufferSize;
+    bufferDesc.Height              = 1;
+    bufferDesc.MipLevels           = 1;
+    bufferDesc.SampleDesc.Count    = 1;
+    bufferDesc.DepthOrArraySize    = 1;
+    bufferDesc.Layout              = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    bufferDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+    D3D12_HEAP_PROPERTIES heapProp = { D3D12_HEAP_TYPE_DEFAULT};
+    ThrowIfFailed(_device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &bufferDesc, initialState,
+                                                   nullptr, IID_PPV_ARGS(&(*pOutBuffer))));
 }
 
 std::vector<char> readBytecode(const std::string& fileName)
@@ -343,7 +367,7 @@ void SceneManager::CreateRootSignatures()
 
 void SceneManager::CreateFrameResources()
 {
-    CreateConstantBuffer(sizeof(ViewParams), &_viewParams);
+    CreateConstantBuffer(sizeof(ViewParams), &_viewParams, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 void SceneManager::UpdateObjects()
@@ -352,10 +376,87 @@ void SceneManager::UpdateObjects()
     ThrowIfFailed(_viewParams->Map(0, nullptr, &sceneData));
 
     DirectX::XMFLOAT4 camPos = _mainCamera.GetEyePosition();
-    DirectX::XMVECTOR m = { camPos.x, camPos.y, camPos.z, camPos.w };
+    DirectX::XMVECTOR m      = {camPos.x, camPos.y, camPos.z, camPos.w};
 
     DirectX::XMMATRIX projMat = _mainCamera.GetProjMatrix();
 
-    ((ViewParams*)sceneData)->viewPos = m;
+    ((ViewParams*)sceneData)->viewPos         = m;
     ((ViewParams*)sceneData)->inverseViewProj = DirectX::XMMatrixInverse(nullptr, projMat);
+
+    bool anyDirty = std::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
+                                [](const SceneObjectPtr& object) { return object->IsDirty(); });
+
+    if (anyDirty)
+    {
+        BuildTLAS();
+        std::for_each(_sceneObjects.begin(), _sceneObjects.end(), [](SceneObjectPtr& object) { object->ResetDirty(); });
+    }
+}
+
+void SceneManager::BuildTLAS()
+{
+    CommandList cmdList{CommandListType::Direct, _device};
+
+    size_t objectsCount = _sceneObjects.size();
+
+    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC tlasDesc = {};
+    auto& inputs = tlasDesc.Inputs;
+    inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+    inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE; // TODO (DB): check what flags we have and how we could use it
+    inputs.NumDescs = objectsCount;
+    inputs.pGeometryDescs = nullptr;
+
+    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo = {};
+    _device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuildInfo);
+    if (prebuildInfo.ResultDataMaxSizeInBytes == 0)
+        throw std::runtime_error("Zeroed size");
+
+    ComPtr<ID3D12Resource> scratchResource;
+    CreateUAVBuffer(prebuildInfo.ScratchDataSizeInBytes, &scratchResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    CreateUAVBuffer(prebuildInfo.ResultDataMaxSizeInBytes, &_tlas, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+    _tlas->SetName(L"Top-Level Acceleration Structure");
+
+    std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instancesDesc;
+    instancesDesc.reserve(objectsCount);
+    for (auto& sceneObject : _sceneObjects)
+    {
+        instancesDesc.emplace_back();
+
+        D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instancesDesc.back();
+        instanceDesc.AccelerationStructure               = sceneObject->GetBLAS()->GetGPUVirtualAddress();
+        instanceDesc.InstanceContributionToHitGroupIndex = 0;
+        instanceDesc.InstanceMask                        = 0xFF;
+        for (int i = 0; i < 3; ++i)
+            memcpy(instanceDesc.Transform[i], &(sceneObject->GetWorldMatrix().r[i]), sizeof(float) * 4);
+    }
+
+    ComPtr<ID3D12Resource> instances;
+    size_t instancesBufferSize = sizeof(decltype(instancesDesc)::value_type) * instancesDesc.size();
+    CreateConstantBuffer(instancesBufferSize, &instances, D3D12_RESOURCE_STATE_GENERIC_READ);
+    void* instancesPtr = nullptr;
+    instances->Map(0, nullptr, &instancesPtr);
+    memcpy(instancesPtr, instancesDesc.data(), instancesBufferSize);
+    instances->Unmap(0, nullptr);
+
+    {
+        tlasDesc.Inputs.InstanceDescs             = instances->GetGPUVirtualAddress();
+        tlasDesc.ScratchAccelerationStructureData = scratchResource->GetGPUVirtualAddress();
+        tlasDesc.DestAccelerationStructureData    = _tlas->GetGPUVirtualAddress();
+    }
+
+    cmdList.GetInternal()->BuildRaytracingAccelerationStructure(&tlasDesc, 0, nullptr);
+    cmdList.Close();
+
+    ExecuteCommandLists(cmdList);
+
+    D3D12_CPU_DESCRIPTOR_HANDLE heapHandle = _rtsHeap->GetCPUDescriptorHandleForHeapStart();
+    heapHandle.ptr += _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+    srvDesc.RaytracingAccelerationStructure.Location = _tlas->GetGPUVirtualAddress();
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+    _device->CreateShaderResourceView(nullptr, &srvDesc, heapHandle);
 }
