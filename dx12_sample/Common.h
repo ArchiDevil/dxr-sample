@@ -9,6 +9,12 @@
 
 struct ViewParams
 {
-    float4 viewPos;
     float4x4 inverseViewProj;
+    float4 viewPos;
+};
+
+struct LightParams
+{
+    float4 direction;
+    float4 color;
 };

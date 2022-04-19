@@ -5,12 +5,13 @@
 namespace Math
 {
 
-inline DirectX::XMFLOAT4 GetPointOnSphere(const XMFLOAT3 & center, float radius, float xAngle, float yAngle)
+inline DirectX::XMFLOAT4 GetPointOnSphere(const XMFLOAT3& center, float radius, float rotation, float inclination)
 {
-    float x = radius * std::sin(yAngle * 0.0175f) * std::cos(xAngle * 0.0175f) + center.x;
-    float y = radius * std::sin(yAngle * 0.0175f) * std::sin(xAngle * 0.0175f) + center.y;
-    float z = radius * std::cos(yAngle * 0.0175f) + center.z;
-    return {x, z, y, 1.0f};
+    float x = center.x + radius * std::sin(rotation * 0.0175f) * std::cos(inclination * 0.0175f);
+    float y = center.y + radius * std::cos(rotation * 0.0175f) * std::cos(inclination * 0.0175f);
+
+    float z = center.z + radius * std::sin(inclination * 0.0175f);
+    return {x, y, z, 1.0f};
 }
 
-}
+}  // namespace Math

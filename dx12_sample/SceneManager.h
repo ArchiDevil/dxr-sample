@@ -77,6 +77,7 @@ private:
     // shader tables
     ComPtr<ID3D12Resource>                      _raygenTable = nullptr;
     ComPtr<ID3D12Resource>                      _missTable = nullptr;
+    ComPtr<ID3D12Resource>                      _hitTable = nullptr;
 
     // output resources
     ComPtr<ID3D12DescriptorHeap>                _rtsHeap = nullptr;
@@ -84,6 +85,7 @@ private:
 
     // frame resources
     ComPtr<ID3D12Resource>                      _viewParams = nullptr;
+    ComPtr<ID3D12Resource>                      _lightParams = nullptr;
     ComPtr<ID3D12Resource>                      _tlas       = nullptr;
 
     // other objects from outside

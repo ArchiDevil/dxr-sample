@@ -13,6 +13,10 @@
 
 constexpr auto pi = 3.14159265f;
 
+// Hit groups.
+const wchar_t* hitGroupNames[] = {L"MyHitGroup_Triangle"};
+const wchar_t* closestHitShaderNames[] = {L"ClosestHitShader_Triangle"};
+
 SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
     UINT screenWidth,
     UINT screenHeight,
@@ -124,14 +128,14 @@ void SceneManager::CreateRenderTargets()
     _swapChainRTs = _rtManager->CreateRenderTargetsForSwapChain(_swapChain);
 
     D3D12_RESOURCE_DESC dxrOutputDesc = {};
-    dxrOutputDesc.Width = _screenWidth;
-    dxrOutputDesc.Height = _screenHeight;
-    dxrOutputDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    dxrOutputDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    dxrOutputDesc.MipLevels = 1;
-    dxrOutputDesc.DepthOrArraySize = 1;
-    dxrOutputDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-    dxrOutputDesc.SampleDesc.Count = 1;
+    dxrOutputDesc.Width               = _screenWidth;
+    dxrOutputDesc.Height              = _screenHeight;
+    dxrOutputDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    dxrOutputDesc.Format              = DXGI_FORMAT_R8G8B8A8_UNORM;
+    dxrOutputDesc.MipLevels           = 1;
+    dxrOutputDesc.DepthOrArraySize    = 1;
+    dxrOutputDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    dxrOutputDesc.SampleDesc.Count    = 1;
 
     D3D12_HEAP_PROPERTIES heapProps = {};
     heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -147,7 +151,7 @@ void SceneManager::CreateRenderTargets()
     ThrowIfFailed(_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_rtsHeap)));
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    uavDesc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     _device->CreateUnorderedAccessView(_raytracingOutput.Get(), nullptr, &uavDesc, _rtsHeap->GetCPUDescriptorHandleForHeapStart());
 
@@ -171,6 +175,7 @@ void SceneManager::CreateShaderTables()
 {
     CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_missTable, D3D12_RESOURCE_STATE_GENERIC_READ);
     CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_raygenTable, D3D12_RESOURCE_STATE_GENERIC_READ);
+    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_hitTable, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 void SceneManager::PopulateCommandList()
@@ -186,15 +191,26 @@ void SceneManager::PopulateCommandList()
     ThrowIfFailed(_missTable->Map(0, nullptr, &missTableData));
     memcpy(missTableData, props->GetShaderIdentifier(L"MissShader"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
+    void* hitTableData = nullptr;
+    ThrowIfFailed(_hitTable->Map(0, nullptr, &hitTableData));
+    void* hitGroupShaderIdentifier = props->GetShaderIdentifier(hitGroupNames[0]);
+    memcpy(hitTableData, hitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+
     D3D12_DISPATCH_RAYS_DESC desc = {};
     desc.Height = _screenHeight;
     desc.Width = _screenWidth;
     desc.Depth = 1;
+
     desc.RayGenerationShaderRecord.StartAddress = _raygenTable->GetGPUVirtualAddress();
     desc.RayGenerationShaderRecord.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+
     desc.MissShaderTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
     desc.MissShaderTable.StartAddress = _missTable->GetGPUVirtualAddress();
     desc.MissShaderTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+
+    desc.HitGroupTable.StartAddress = _hitTable->GetGPUVirtualAddress();
+    desc.HitGroupTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+    desc.HitGroupTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 
     _cmdList->Reset();
     _cmdList->GetInternal()->SetPipelineState1(_raytracingState.Get());
@@ -204,6 +220,7 @@ void SceneManager::PopulateCommandList()
     _cmdList->GetInternal()->SetComputeRootSignature(_globalRootSignature.GetInternal().Get());
     _cmdList->GetInternal()->SetComputeRootDescriptorTable(0, heap->GetGPUDescriptorHandleForHeapStart());
     _cmdList->GetInternal()->SetComputeRootConstantBufferView(1, _viewParams->GetGPUVirtualAddress());
+    _cmdList->GetInternal()->SetComputeRootConstantBufferView(2, _lightParams->GetGPUVirtualAddress());
     _cmdList->GetInternal()->DispatchRays(&desc);
 
     {
@@ -304,9 +321,10 @@ void SceneManager::CreateRaytracingPSO()
     library_desc.DXILLibrary.pShaderBytecode = bytes.data();
     library_desc.DXILLibrary.BytecodeLength = bytes.size();
 
-    std::vector<D3D12_EXPORT_DESC> exports(2);
+    std::vector<D3D12_EXPORT_DESC> exports(3);
     exports[0].Name = L"RayGenShader";
     exports[1].Name = L"MissShader";
+    exports[2].Name = closestHitShaderNames[0];
 
     library_desc.NumExports = exports.size();
     library_desc.pExports = exports.data();
@@ -317,6 +335,17 @@ void SceneManager::CreateRaytracingPSO()
 
         library.pDesc = &library_desc;
         subobjects.emplace_back(library);
+    }
+
+    D3D12_HIT_GROUP_DESC hitGroupDesc   = {};
+    hitGroupDesc.Type = D3D12_HIT_GROUP_TYPE::D3D12_HIT_GROUP_TYPE_TRIANGLES;
+    hitGroupDesc.HitGroupExport = hitGroupNames[0];
+    hitGroupDesc.ClosestHitShaderImport = closestHitShaderNames[0];
+    {
+        D3D12_STATE_SUBOBJECT hitGroupSubobject;
+        hitGroupSubobject.Type  = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+        hitGroupSubobject.pDesc = &hitGroupDesc;
+        subobjects.emplace_back(hitGroupSubobject);
     }
 
     D3D12_RAYTRACING_PIPELINE_CONFIG descPipelineConfig;
@@ -357,31 +386,39 @@ void SceneManager::CreateRaytracingPSO()
 
 void SceneManager::CreateRootSignatures()
 {
-    _globalRootSignature.Init(2, 0);
+    _globalRootSignature.Init(3, 0);
     _globalRootSignature[0].InitAsDescriptorsTable(2); // Output UAV
     _globalRootSignature[0].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
     _globalRootSignature[0].InitTableRange(1, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
     _globalRootSignature[1].InitAsCBV(0);
+    _globalRootSignature[2].InitAsCBV(1);
     _globalRootSignature.Finalize(_device);
 }
 
 void SceneManager::CreateFrameResources()
 {
     CreateConstantBuffer(sizeof(ViewParams), &_viewParams, D3D12_RESOURCE_STATE_GENERIC_READ);
+    CreateConstantBuffer(sizeof(LightParams), &_lightParams, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 void SceneManager::UpdateObjects()
 {
     void* sceneData = nullptr;
+
     ThrowIfFailed(_viewParams->Map(0, nullptr, &sceneData));
 
     DirectX::XMFLOAT4 camPos = _mainCamera.GetEyePosition();
     DirectX::XMVECTOR m      = {camPos.x, camPos.y, camPos.z, camPos.w};
 
-    DirectX::XMMATRIX projMat = _mainCamera.GetProjMatrix();
+    DirectX::XMMATRIX viewProjMat = _mainCamera.GetViewProjMatrix();
 
     ((ViewParams*)sceneData)->viewPos         = m;
-    ((ViewParams*)sceneData)->inverseViewProj = DirectX::XMMatrixInverse(nullptr, projMat);
+    ((ViewParams*)sceneData)->inverseViewProj = DirectX::XMMatrixInverse(nullptr, viewProjMat);
+
+    ThrowIfFailed(_lightParams->Map(0, nullptr, &sceneData));
+
+    ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({0.0, 0.1, 0.0, 1.0});
+    ((LightParams*)sceneData)->color     = DirectX::XMVECTOR({1.0, 1.0, 1.0, 1.0});
 
     bool anyDirty = std::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
                                 [](const SceneObjectPtr& object) { return object->IsDirty(); });
@@ -423,10 +460,11 @@ void SceneManager::BuildTLAS()
     {
         instancesDesc.emplace_back();
 
-        D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc = instancesDesc.back();
+        D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc     = instancesDesc.back();
         instanceDesc.AccelerationStructure               = sceneObject->GetBLAS()->GetGPUVirtualAddress();
         instanceDesc.InstanceContributionToHitGroupIndex = 0;
-        instanceDesc.InstanceMask                        = 0xFF;
+        instanceDesc.InstanceMask                        = 1;
+
         for (int i = 0; i < 3; ++i)
             memcpy(instanceDesc.Transform[i], &(sceneObject->GetWorldMatrix().r[i]), sizeof(float) * 4);
     }

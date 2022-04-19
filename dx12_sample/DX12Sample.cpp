@@ -72,8 +72,8 @@ void DX12Sample::OnUpdate()
     static double time = 0;
     time += dt;
 
-    _sceneManager->GetCamera().SetInclination(time * 3.0f);
-    _sceneManager->GetCamera().SetRotation(time * 3.0f);
+    // _sceneManager->GetCamera().SetInclination(time * 10.0f);
+    _sceneManager->GetCamera().SetRotation(time * 10.0f);
 }
 
 void DX12Sample::OnRender()
