@@ -17,14 +17,29 @@
         - [x] Put these bindings to the raygen shader (using CBV): view position, direction
         - [x] Start using camera object
 - [ ] Generate a simplest scene and draw it
-    * Start using multiple objects
-    * Create something like objects manager
-    * Start using local root signatures and bindings
+    - [x] Start using multiple objects
+    - [x] Create something like objects manager
+    - [x] Start using local root signatures and bindings
+    - [ ] Generate or load a scene
 - [ ] Add textures
+- [ ] Add a separate pass using a convenient rendering (like a depth pass)
 - [ ] Add shadows & AO
     * Use results from depth pass
 - [ ] Add some action to scene
     * Rebuild TLAS
-- [ ] Add a separate pass using a convenient rendering (like a depth pass)
 - [ ] Add reflection
 - [ ] Add transparency & refraction
+
+## Other tasks
+
+- [ ] Switch to C++20 -- EASY
+- [ ] Implement procedural generation of simple objects: -- EASY
+- [ ] Implement scene tree with configurable parameters -- MEDIUM
+    - [ ] Sphere
+    - [ ] Torus
+- [ ] Implement in-app profiler (configurable) to measure: -- MEDIUM
+    - [ ] TLAS building time
+    - [ ] Ray tracing pass
+    - [ ] UI drawing pass
+- [ ] Implement microsurface BRDF -- HARD
+- [ ] Switch to linear rendering with color-correction -- HARD
