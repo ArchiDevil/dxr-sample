@@ -8,6 +8,7 @@ include_directories(.)
 
 add_compile_definitions(UNICODE)
 add_compile_options(/MP)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
