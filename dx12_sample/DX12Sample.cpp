@@ -117,7 +117,9 @@ void DX12Sample::OnRender()
 
         const float          padding  = 10.0f;
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
-        static float colors[3] = {1.0f, 1.0f, 1.0f};
+        static ImVec4 ambientColor{ 0.1f, 0.1f, 0.1f, 1.0f };
+        static ImVec4 lightColor{1.0f, 1.0f, 1.0f, 1.0f};
+        static ImVec4 lightPos{ 0.75f, 1.0f, 0.2f, 1.0f };
 
         ImVec2 window_pos;
         window_pos.x = viewport->WorkPos.x + padding;
@@ -135,10 +137,14 @@ void DX12Sample::OnRender()
         ImGui::Text("Y: %.3f", _sceneManager->GetCamera().GetEyePosition().y);
         ImGui::SameLine();
         ImGui::Text("Z: %.3f", _sceneManager->GetCamera().GetEyePosition().z);
-        ImGui::ColorPicker3("Light color", colors);
+        ImGui::ColorEdit3("Ambient color", (float*)&ambientColor);
+        ImGui::ColorEdit3("Light color", (float*)&lightColor);
+        ImGui::SliderFloat3("Light position", (float*)&lightPos, -1.0f, 1.0f);
         ImGui::End();
 
-        _sceneManager->SetLightColor(colors[0], colors[1], colors[2]);
+        _sceneManager->SetAmbientColor(ambientColor.x, ambientColor.y, ambientColor.z);
+        _sceneManager->SetLightColor(lightColor.x, lightColor.y, lightColor.z);
+        _sceneManager->SetLightPos(lightPos.x, lightPos.y, lightPos.z);
     }
 
     // Rendering

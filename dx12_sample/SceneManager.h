@@ -40,6 +40,8 @@ public:
 
     Graphics::SphericalCamera& GetCamera();
     void SetLightColor(float r, float g, float b);
+    void SetLightPos(float x, float y, float z);
+    void SetAmbientColor(float r, float g, float b);
 
 private:
     void CreateCommandLists();
@@ -91,5 +93,8 @@ private:
     Graphics::SphericalCamera                   _mainCamera;
     MeshManager                                 _meshManager;
     std::vector<SceneObjectPtr>                 _sceneObjects;
+
     float                                       _lightColors[3];
+    float                                       _lightPos[3];
+    float                                       _ambientColor[3];
 };

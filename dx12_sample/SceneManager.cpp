@@ -40,8 +40,6 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
 {
     assert(rtManager);
 
-    _lightColors[0] = _lightColors[1] = _lightColors[2] = 1.0f;
-
     _mainCamera.SetCenter({ 0.0f, 0.0f, 0.0f });
     _mainCamera.SetRadius(5.0f);
 
@@ -106,6 +104,20 @@ void SceneManager::SetLightColor(float r, float g, float b)
     _lightColors[0] = r;
     _lightColors[1] = g;
     _lightColors[2] = b;
+}
+
+void SceneManager::SetLightPos(float x, float y, float z)
+{
+    _lightPos[0] = x;
+    _lightPos[1] = y;
+    _lightPos[2] = z;
+}
+
+void SceneManager::SetAmbientColor(float r, float g, float b)
+{
+    _ambientColor[0] = r;
+    _ambientColor[1] = g;
+    _ambientColor[2] = b;
 }
 
 void SceneManager::CreateRenderTargets()
@@ -438,11 +450,14 @@ void SceneManager::UpdateObjects()
 
     ((ViewParams*)sceneData)->viewPos         = m;
     ((ViewParams*)sceneData)->inverseViewProj = DirectX::XMMatrixInverse(nullptr, viewProjMat);
+    ((ViewParams*)sceneData)->ambientColor    = DirectX::XMVECTOR({ _ambientColor[0], _ambientColor[1], _ambientColor[2], 1.0 });
 
     ThrowIfFailed(_lightParams->Map(0, nullptr, &sceneData));
 
-    ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({0.9, 1.1, 0.5, 1.0});
+    ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({ _lightPos[0], _lightPos[1], _lightPos[2], 1.0});
     ((LightParams*)sceneData)->color     = DirectX::XMVECTOR({_lightColors[0], _lightColors[1], _lightColors[2], 1.0});
+
+    _sceneObjects.back()->Rotation(_sceneObjects.back()->Rotation() + 0.01f);
 
     bool anyDirty = std::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
                                 [](const SceneObjectPtr& object) { return object->IsDirty(); });

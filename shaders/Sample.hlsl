@@ -108,10 +108,12 @@ void ClosestHitShader_Triangle(inout RayPayload rayPayload, in BuiltInTriangleIn
     // Load vertices
     GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), barycentrics);
 
-    float3 n = normalize(v.normal);
+    float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
     float3 l = normalize(lightParams.direction.xyz);
 
     float lightness = saturate(dot(n, l));
 
-    rayPayload.color = float4(modelParams.color.xyz * lightness * lightParams.color.xyz, 1.0);
+    float3 diffuseColor = modelParams.color.xyz * lightness * lightParams.color.xyz;
+    float3 ambientColor = sceneParams.ambientColor.xyz;
+    rayPayload.color = float4(diffuseColor + ambientColor, 1.0);
 }

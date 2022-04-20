@@ -13,6 +13,7 @@ struct ViewParams
 {
     float4x4 inverseViewProj;
     float4   viewPos;
+    float4   ambientColor;
 };
 
 struct LightParams
@@ -23,7 +24,8 @@ struct LightParams
 
 struct ModelParams
 {
-    float4 color;
+    float4   color;
+    float4x4 worldMatrix;
 };
 
 struct GeometryVertex

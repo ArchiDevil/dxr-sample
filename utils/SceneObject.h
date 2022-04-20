@@ -48,6 +48,7 @@ private:
     XMFLOAT3                            _scale = {1.0f, 1.0f, 1.0f};
     float                               _rotation = 0.0f;
     XMMATRIX                            _worldMatrix = XMMatrixIdentity();
+    XMFLOAT4                            _color;
 
     ComPtr<ID3D12Resource>              _constantBuffer = nullptr;
     ComPtr<ID3D12Resource>              _blas = nullptr;

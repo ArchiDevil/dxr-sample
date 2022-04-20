@@ -4,7 +4,7 @@
 
 #include "Types.h"
 
-#include "Common.h"
+#include <shaders/Common.h>
 
 SceneObject::SceneObject(std::shared_ptr<MeshObject> meshObject,
                          ComPtr<ID3D12Device> pDevice)
@@ -23,15 +23,7 @@ SceneObject::SceneObject(std::shared_ptr<MeshObject> meshObject,
 
     pDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &constantBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_constantBuffer));
 
-    ModelParams* bufPtr = nullptr;
-    ModelParams  params;
-    params.color = {float(rand() % 50 + 50.0f) / 100,
-                    float(rand() % 50 + 50.0f) / 100,
-                    float(rand() % 50 + 50.0f) / 100, 1};
-
-    ThrowIfFailed(_constantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&bufPtr)));
-    memcpy(bufPtr, &params, sizeof(ModelParams));
-    _constantBuffer->Unmap(0, nullptr);
+    _color = { float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, 1 };
 }
 
 bool SceneObject::IsDirty() const
@@ -112,4 +104,13 @@ void SceneObject::CalculateWorldMatrix()
 
     _worldMatrix = scaleMatrix * rotationMatrix * translationMatrix;
     _worldMatrix = XMMatrixTranspose(_worldMatrix);
+
+    ModelParams* bufPtr = nullptr;
+    ModelParams  params;
+    params.color = XMVECTOR{_color.x, _color.y, _color.z, _color.w};
+    params.worldMatrix = _worldMatrix;
+
+    ThrowIfFailed(_constantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&bufPtr)));
+    memcpy(bufPtr, &params, sizeof(ModelParams));
+    _constantBuffer->Unmap(0, nullptr);
 }
