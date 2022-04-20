@@ -4,6 +4,8 @@
 
 #include "Types.h"
 
+#include "Common.h"
+
 SceneObject::SceneObject(std::shared_ptr<MeshObject> meshObject,
                          ComPtr<ID3D12Device> pDevice)
     : _meshObject(meshObject)
@@ -12,7 +14,7 @@ SceneObject::SceneObject(std::shared_ptr<MeshObject> meshObject,
     D3D12_HEAP_PROPERTIES heapProp = {D3D12_HEAP_TYPE_UPLOAD};
     D3D12_RESOURCE_DESC constantBufferDesc = {};
     constantBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    constantBufferDesc.Width = sizeof(perModelParamsConstantBuffer);
+    constantBufferDesc.Width = sizeof(ModelParams);
     constantBufferDesc.Height = 1;
     constantBufferDesc.MipLevels = 1;
     constantBufferDesc.SampleDesc.Count = 1;
@@ -20,6 +22,16 @@ SceneObject::SceneObject(std::shared_ptr<MeshObject> meshObject,
     constantBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
     pDevice->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &constantBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&_constantBuffer));
+
+    ModelParams* bufPtr = nullptr;
+    ModelParams  params;
+    params.color = {float(rand() % 50 + 50.0f) / 100,
+                    float(rand() % 50 + 50.0f) / 100,
+                    float(rand() % 50 + 50.0f) / 100, 1};
+
+    ThrowIfFailed(_constantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&bufPtr)));
+    memcpy(bufPtr, &params, sizeof(ModelParams));
+    _constantBuffer->Unmap(0, nullptr);
 }
 
 bool SceneObject::IsDirty() const
@@ -40,6 +52,15 @@ const XMMATRIX& SceneObject::GetWorldMatrix() const
 const ComPtr<ID3D12Resource>& SceneObject::GetBLAS() const 
 {
     return _meshObject->BLAS();
+}
+
+const ComPtr<ID3D12Resource>& SceneObject::GetVertexBuffer() const
+{
+     return _meshObject->VertexBuffer();
+}
+const ComPtr<ID3D12Resource>& SceneObject::GetIndexBuffer() const
+{
+    return _meshObject->IndexBuffer();
 }
 
 DirectX::XMFLOAT3 SceneObject::Position() const
@@ -91,9 +112,4 @@ void SceneObject::CalculateWorldMatrix()
 
     _worldMatrix = scaleMatrix * rotationMatrix * translationMatrix;
     _worldMatrix = XMMatrixTranspose(_worldMatrix);
-
-    //perModelParamsConstantBuffer * bufPtr = nullptr;
-    //ThrowIfFailed(_constantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&bufPtr)));
-    //memcpy(bufPtr->worldMatrix, GetWorldMatrix().r, sizeof(XMMATRIX));
-    //_constantBuffer->Unmap(0, nullptr);
 }

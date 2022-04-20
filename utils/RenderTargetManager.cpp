@@ -188,7 +188,7 @@ std::vector<std::shared_ptr<RenderTarget>> RenderTargetManager::CreateRenderTarg
         ComPtr<ID3D12Resource> resource = nullptr;
         ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&resource)));
         D3D12_RENDER_TARGET_VIEW_DESC viewDesc = {};
-        viewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        viewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         viewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
         _device->CreateRenderTargetView(resource.Get(), &viewDesc, handle);
         resource->SetName(L"SwapChain RT");

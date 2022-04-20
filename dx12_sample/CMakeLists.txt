@@ -8,17 +8,6 @@ set(SRC
     SceneManager.cpp
     SceneManager.h
     stdafx.h
-
-    Common.h # HLSL <-> C++ translation
-    Sample.hlsl # main library
-)
-
-set_source_files_properties(Sample.hlsl 
-    PROPERTIES 
-        VS_SHADER_MODEL "6.3"
-        VS_SHADER_TYPE "Library"
-        VS_SHADER_ENTRYPOINT ""
-        VS_SHADER_FLAGS "/Zpr" # for row-major matrices
 )
 
 add_executable(dxr_sample ${SRC})
@@ -27,6 +16,7 @@ target_link_libraries(dxr_sample
     d3dx12
     utils
     imgui
+    shaders
     winpixruntime
     dxgi.lib
     d3d12.lib
@@ -41,9 +31,3 @@ set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDO
 set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS")
 
 add_dependencies(dxr_sample copy_assets)
-
-add_custom_command(TARGET dxr_sample POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-        "${CMAKE_BINARY_DIR}/dx12_sample/${CMAKE_CFG_INTDIR}/Sample.cso"
-        "${CMAKE_BINARY_DIR}/dx12_sample/Sample.cso"
-)

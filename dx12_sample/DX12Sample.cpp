@@ -97,7 +97,7 @@ void DX12Sample::OnUpdate()
     static double time = 0;
     time += dt;
 
-    // _sceneManager->GetCamera().SetInclination(time * 10.0f);
+    _sceneManager->GetCamera().SetInclination(20.0f);
     _sceneManager->GetCamera().SetRotation(time * 10.0f);
 }
 
@@ -117,6 +117,7 @@ void DX12Sample::OnRender()
 
         const float          padding  = 10.0f;
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        static float colors[3] = {1.0f, 1.0f, 1.0f};
 
         ImVec2 window_pos;
         window_pos.x = viewport->WorkPos.x + padding;
@@ -134,8 +135,10 @@ void DX12Sample::OnRender()
         ImGui::Text("Y: %.3f", _sceneManager->GetCamera().GetEyePosition().y);
         ImGui::SameLine();
         ImGui::Text("Z: %.3f", _sceneManager->GetCamera().GetEyePosition().z);
-        ImGui::SameLine();
+        ImGui::ColorPicker3("Light color", colors);
         ImGui::End();
+
+        _sceneManager->SetLightColor(colors[0], colors[1], colors[2]);
     }
 
     // Rendering

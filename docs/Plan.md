@@ -3,16 +3,16 @@
 ## Steps
 
 - [x] Draw a scene with only miss shaders
-- [ ] Draw a gray cube
-    - [ ] Create BLAS/TLAS objects (AM)
-        - [ ] Create BLAS
-        - [ ] Create TLAS
-        - [ ] Bind it
-    - [ ] Write & compile simple closest hit shader with a color returned (MB)
-        - [ ] Write a shader with a simple lighting (directional light)
-        - [ ] Create shader table (for closest/any hit shaders)
-        - [ ] Create hit group for the object
-    - [x] Update Raygen shader (DB)(AS)(DP)
+- [x] Draw a colored cube
+    - [x] Create BLAS/TLAS objects
+        - [x] Create BLAS
+        - [x] Create TLAS
+        - [x] Bind it
+    - [x] Write & compile simple closest hit shader with a color returned
+        - [x] Write a shader with a simple lighting (directional light)
+        - [x] Create shader table (for closest/any hit shaders)
+        - [x] Create hit group for the object
+    - [x] Update Raygen shader
         - [x] Use correct view/projection matrices
         - [x] Put these bindings to the raygen shader (using CBV): view position, direction
         - [x] Start using camera object

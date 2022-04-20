@@ -4,7 +4,9 @@
 
 #include "Types.h"
 
-static const std::vector<geometryVertex> vertices =
+#include <shaders/Common.h>
+
+static const std::vector<GeometryVertex> vertices =
 {
     // back face +Z
     {{ 0.5f,  0.5f,  0.5f}, {0.0f, 0.0f,  1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
@@ -261,7 +263,7 @@ std::shared_ptr<MeshObject> MeshManager::CreateCube(std::function<void(CommandLi
 
     _cube = std::make_shared<MeshObject>(
         std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-        sizeof(geometryVertex),
+        sizeof(GeometryVertex),
         indices,
         _device,
         true,
@@ -301,7 +303,7 @@ std::shared_ptr<MeshObject> MeshManager::CreateEmptyCube(std::function<void(Comm
 
     _emptyCube = std::make_shared<MeshObject>(
         std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-        sizeof(geometryVertex), indices, _device, true, cmdListExecutor);
+        sizeof(GeometryVertex), indices, _device, true, cmdListExecutor);
 
     return _emptyCube;
 }
@@ -316,7 +318,7 @@ std::shared_ptr<MeshObject> MeshManager::CreatePlane(std::function<void(CommandL
     if (_plane)
         return _plane;
 
-    static const std::vector<geometryVertex> vertices =
+    static const std::vector<GeometryVertex> vertices =
     {
         {{-0.5f, 0.0f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
         {{0.5f, 0.0f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
@@ -332,7 +334,7 @@ std::shared_ptr<MeshObject> MeshManager::CreatePlane(std::function<void(CommandL
 
     _plane = std::make_shared<MeshObject>(
         std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
-        sizeof(geometryVertex), indices, _device, true, cmdListExecutor);
+        sizeof(GeometryVertex), indices, _device, true, cmdListExecutor);
 
     return _plane;
 }

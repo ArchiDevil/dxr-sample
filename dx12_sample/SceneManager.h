@@ -39,6 +39,7 @@ public:
     void ExecuteCommandList(const CommandList & commandList);
 
     Graphics::SphericalCamera& GetCamera();
+    void SetLightColor(float r, float g, float b);
 
 private:
     void CreateCommandLists();
@@ -65,6 +66,7 @@ private:
 
     // root signatures
     RootSignature                               _globalRootSignature;
+    RootSignature                               _localRootSignature;
 
     // shader tables
     ComPtr<ID3D12Resource>                      _raygenTable = nullptr;
@@ -89,4 +91,5 @@ private:
     Graphics::SphericalCamera                   _mainCamera;
     MeshManager                                 _meshManager;
     std::vector<SceneObjectPtr>                 _sceneObjects;
+    float                                       _lightColors[3];
 };

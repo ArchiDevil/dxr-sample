@@ -33,6 +33,9 @@ public:
     const XMMATRIX& GetWorldMatrix() const;
     const ComPtr<ID3D12Resource>& GetBLAS() const;
 
+    const ComPtr<ID3D12Resource>& GetVertexBuffer() const;
+    const ComPtr<ID3D12Resource>& GetIndexBuffer() const;
+
     bool IsDirty() const;
     void ResetDirty();
 

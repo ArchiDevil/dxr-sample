@@ -42,6 +42,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         }
     }
 
+    srand(time(nullptr));
+
     try
     {
         DX12Sample app = {1280, 720, arguments};

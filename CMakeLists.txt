@@ -20,4 +20,5 @@ add_custom_target(copy_assets
 
 add_subdirectory(3rdparty)
 add_subdirectory(dx12_sample)
+add_subdirectory(shaders)
 add_subdirectory(utils)

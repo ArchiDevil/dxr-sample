@@ -2,8 +2,7 @@
 
 #include "SceneManager.h"
 
-#include "Common.h"
-
+#include <shaders/Common.h>
 #include <utils/RenderTargetManager.h>
 #include <utils/Shaders.h>
 
@@ -16,6 +15,14 @@ constexpr auto pi = 3.14159265f;
 // Hit groups.
 const wchar_t* hitGroupNames[] = {L"MyHitGroup_Triangle"};
 const wchar_t* closestHitShaderNames[] = {L"ClosestHitShader_Triangle"};
+
+static constexpr uint32_t slocalRootSignatureBindingsCount = 3;
+size_t hitTableStride = 0;
+
+constexpr std::size_t AlignTo(std::size_t size, std::size_t alignment)
+{
+    return (size + alignment - 1) & ~(alignment - 1);
+}
 
 SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceResources,
                            UINT                                       screenWidth,
@@ -33,6 +40,8 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
 {
     assert(rtManager);
 
+    _lightColors[0] = _lightColors[1] = _lightColors[2] = 1.0f;
+
     _mainCamera.SetCenter({ 0.0f, 0.0f, 0.0f });
     _mainCamera.SetRadius(5.0f);
 
@@ -42,7 +51,6 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
     CreateRenderTargets();
     CreateRootSignatures();
     CreateRaytracingPSO();
-    CreateShaderTables();
     CreateCommandLists();
 
     auto executor = [this](CommandList& cmdList) { ExecuteCommandList(cmdList); };
@@ -52,6 +60,8 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
 
     _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateCube(executor), deviceResources->GetDevice()));
     _sceneObjects.back()->Position({2.0, 0.0, 0.0});
+
+     CreateShaderTables();
 
     BuildTLAS();
 }
@@ -89,6 +99,13 @@ void SceneManager::ExecuteCommandList(const CommandList& commandList)
 Graphics::SphericalCamera& SceneManager::GetCamera()
 {
     return _mainCamera;
+}
+
+void SceneManager::SetLightColor(float r, float g, float b)
+{
+    _lightColors[0] = r;
+    _lightColors[1] = g;
+    _lightColors[2] = b;
 }
 
 void SceneManager::CreateRenderTargets()
@@ -141,7 +158,12 @@ void SceneManager::CreateShaderTables()
 {
     CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_missTable, D3D12_RESOURCE_STATE_GENERIC_READ);
     CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_raygenTable, D3D12_RESOURCE_STATE_GENERIC_READ);
-    CreateConstantBuffer(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, &_hitTable, D3D12_RESOURCE_STATE_GENERIC_READ);
+
+    std::size_t stride = (D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + slocalRootSignatureBindingsCount * sizeof(D3D12_GPU_VIRTUAL_ADDRESS));
+    stride = AlignTo(stride, 64);
+
+    std::size_t size = _sceneObjects.size() * stride;
+    CreateConstantBuffer(size, &_hitTable, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
 void SceneManager::PopulateCommandList()
@@ -159,8 +181,27 @@ void SceneManager::PopulateCommandList()
 
     void* hitTableData = nullptr;
     ThrowIfFailed(_hitTable->Map(0, nullptr, &hitTableData));
-    void* hitGroupShaderIdentifier = props->GetShaderIdentifier(hitGroupNames[0]);
-    memcpy(hitTableData, hitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+    for (std::size_t i = 0; i < _sceneObjects.size(); i++)
+    {
+        std::size_t stride = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + slocalRootSignatureBindingsCount * sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
+        stride = AlignTo(stride, 64);
+        uint8_t* destination = reinterpret_cast<uint8_t*>(hitTableData) + i * stride;
+
+        void* hitGroupShaderIdentifier = props->GetShaderIdentifier(hitGroupNames[0]);
+        memcpy(destination, hitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+        
+        auto gpuVirtualAddress = _sceneObjects[i]->GetConstantBuffer()->GetGPUVirtualAddress();
+        auto dest              = destination + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+        memcpy(dest, &gpuVirtualAddress, sizeof(D3D12_GPU_VIRTUAL_ADDRESS));
+        
+        auto vertexGpuAddress = _sceneObjects[i]->GetVertexBuffer()->GetGPUVirtualAddress();
+        dest += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
+        memcpy(dest, &vertexGpuAddress, sizeof(D3D12_GPU_VIRTUAL_ADDRESS));
+        
+        auto indexGpuAddress = _sceneObjects[i]->GetIndexBuffer()->GetGPUVirtualAddress();
+        dest += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
+        memcpy(dest, &indexGpuAddress, sizeof(D3D12_GPU_VIRTUAL_ADDRESS));
+    }
 
     D3D12_DISPATCH_RAYS_DESC desc = {};
     desc.Height = _screenHeight;
@@ -170,13 +211,14 @@ void SceneManager::PopulateCommandList()
     desc.RayGenerationShaderRecord.StartAddress = _raygenTable->GetGPUVirtualAddress();
     desc.RayGenerationShaderRecord.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 
-    desc.MissShaderTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
     desc.MissShaderTable.StartAddress = _missTable->GetGPUVirtualAddress();
+    desc.MissShaderTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
     desc.MissShaderTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 
+    std::size_t stride = AlignTo(D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + slocalRootSignatureBindingsCount * sizeof(D3D12_GPU_VIRTUAL_ADDRESS), 64);
     desc.HitGroupTable.StartAddress = _hitTable->GetGPUVirtualAddress();
-    desc.HitGroupTable.SizeInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-    desc.HitGroupTable.StrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+    desc.HitGroupTable.SizeInBytes   = stride * _sceneObjects.size();
+    desc.HitGroupTable.StrideInBytes = stride;
 
     _cmdList->Reset();
     _cmdList->GetInternal()->SetPipelineState1(_raytracingState.Get());
@@ -343,6 +385,15 @@ void SceneManager::CreateRaytracingPSO()
         subobjects.emplace_back(globalRootSignature);
     }
 
+    D3D12_LOCAL_ROOT_SIGNATURE lrsDesc;
+    lrsDesc.pLocalRootSignature = _localRootSignature.GetInternal().Get();
+    {
+        D3D12_STATE_SUBOBJECT localRootSignature;
+        localRootSignature.Type  = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
+        localRootSignature.pDesc = &lrsDesc;
+        subobjects.emplace_back(localRootSignature);
+    }
+
     D3D12_STATE_OBJECT_DESC pDesc;
     pDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
     pDesc.NumSubobjects = subobjects.size();
@@ -360,6 +411,12 @@ void SceneManager::CreateRootSignatures()
     _globalRootSignature[1].InitAsCBV(0);
     _globalRootSignature[2].InitAsCBV(1);
     _globalRootSignature.Finalize(_deviceResources->GetDevice());
+
+    _localRootSignature.Init(3, 0);
+    _localRootSignature[0].InitAsCBV(2);
+    _localRootSignature[1].InitAsSRV(1);
+    _localRootSignature[2].InitAsSRV(2);
+    _localRootSignature.Finalize(_deviceResources->GetDevice(), D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 }
 
 void SceneManager::CreateFrameResources()
@@ -384,8 +441,8 @@ void SceneManager::UpdateObjects()
 
     ThrowIfFailed(_lightParams->Map(0, nullptr, &sceneData));
 
-    ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({0.0, 0.1, 0.0, 1.0});
-    ((LightParams*)sceneData)->color     = DirectX::XMVECTOR({1.0, 1.0, 1.0, 1.0});
+    ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({0.9, 1.1, 0.5, 1.0});
+    ((LightParams*)sceneData)->color     = DirectX::XMVECTOR({_lightColors[0], _lightColors[1], _lightColors[2], 1.0});
 
     bool anyDirty = std::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
                                 [](const SceneObjectPtr& object) { return object->IsDirty(); });
@@ -423,17 +480,17 @@ void SceneManager::BuildTLAS()
 
     std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instancesDesc;
     instancesDesc.reserve(objectsCount);
-    for (auto& sceneObject : _sceneObjects)
+    for (std::size_t idx = 0; idx < _sceneObjects.size(); idx++)
     {
         instancesDesc.emplace_back();
 
         D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc     = instancesDesc.back();
-        instanceDesc.AccelerationStructure               = sceneObject->GetBLAS()->GetGPUVirtualAddress();
-        instanceDesc.InstanceContributionToHitGroupIndex = 0;
+        instanceDesc.AccelerationStructure               = _sceneObjects[idx]->GetBLAS()->GetGPUVirtualAddress();
+        instanceDesc.InstanceContributionToHitGroupIndex = idx;
         instanceDesc.InstanceMask                        = 1;
 
         for (int i = 0; i < 3; ++i)
-            memcpy(instanceDesc.Transform[i], &(sceneObject->GetWorldMatrix().r[i]), sizeof(float) * 4);
+            memcpy(instanceDesc.Transform[i], &(_sceneObjects[idx]->GetWorldMatrix().r[i]), sizeof(float) * 4);
     }
 
     ComPtr<ID3D12Resource> instances;
