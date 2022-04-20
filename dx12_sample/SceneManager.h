@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DeviceResources.h"
+
 #include <utils/RenderTargetManager.h>
 #include <utils/ComputePipelineState.h>
 #include <utils/GraphicsPipelineState.h>
@@ -17,13 +19,12 @@ class SceneManager
 public:
     using SceneObjectPtr = std::shared_ptr<SceneObject>;
 
-    SceneManager(ComPtr<ID3D12Device5> pDevice,
-                 UINT screenWidth,
-                 UINT screenHeight,
-                 CommandLineOptions cmdLineOpts,
-                 ComPtr<ID3D12CommandQueue> pCmdQueue,
-                 ComPtr<IDXGISwapChain3> pSwapChain,
-                 RenderTargetManager * rtManager);
+    SceneManager(std::shared_ptr<DeviceResources>           deviceResources,
+                 UINT                                       screenWidth,
+                 UINT                                       screenHeight,
+                 CommandLineOptions                         cmdLineOpts,
+                 RenderTargetManager*                       rtManager,
+                 std::vector<std::shared_ptr<RenderTarget>> swapChainRTs);
     ~SceneManager();
 
     SceneManager(const SceneManager&) = delete;
@@ -31,10 +32,11 @@ public:
     SceneManager& operator=(const SceneManager&) = delete;
     SceneManager& operator=(SceneManager&&) = delete;
 
-    void DrawAll();
+    void DrawScene();
+    void Present();
 
     // only for texture creation!
-    void ExecuteCommandLists(const CommandList & commandList);
+    void ExecuteCommandList(const CommandList & commandList);
 
     Graphics::SphericalCamera& GetCamera();
 
@@ -50,26 +52,16 @@ private:
 
     void UpdateObjects();
     void PopulateCommandList();
-
-    void WaitCurrentFrame();
+    void BuildTLAS();
 
     // context objects
-    ComPtr<ID3D12Device5>                        _device = nullptr;
-    ComPtr<ID3D12CommandQueue>                  _cmdQueue = nullptr;
-    ComPtr<IDXGISwapChain3>                     _swapChain = nullptr;
+    std::shared_ptr<DeviceResources>            _deviceResources;
 
     // command-lists
     std::unique_ptr<CommandList>                _cmdList = nullptr;
 
     // pipeline states for every object
     ComPtr<ID3D12StateObject>                    _raytracingState = nullptr;
-
-    // sync primitives
-    HANDLE                                      _frameEndEvent = nullptr;
-    uint64_t                                    _fenceValue = 0;
-    uint32_t                                    _frameIndex = 0;
-    ComPtr<ID3D12Fence>                         _frameFence = nullptr;
-    bool                                        _isFrameWaiting = false;
 
     // root signatures
     RootSignature                               _globalRootSignature;
@@ -88,7 +80,7 @@ private:
     ComPtr<ID3D12Resource>                      _lightParams = nullptr;
     ComPtr<ID3D12Resource>                      _tlas       = nullptr;
 
-    // other objects from outside
+    // other objects
     UINT                                        _screenWidth = 0;
     UINT                                        _screenHeight = 0;
     std::vector<std::shared_ptr<RenderTarget>>  _swapChainRTs;
@@ -97,5 +89,4 @@ private:
     Graphics::SphericalCamera                   _mainCamera;
     MeshManager                                 _meshManager;
     std::vector<SceneObjectPtr>                 _sceneObjects;
-    void                                        BuildTLAS();
 };

@@ -1,4 +1,5 @@
 set(SRC
+    DeviceResources.h
     DX12Sample.cpp
     DX12Sample.h
     DXSample.cpp
@@ -23,12 +24,16 @@ set_source_files_properties(Sample.hlsl
 add_executable(dxr_sample ${SRC})
 
 target_link_libraries(dxr_sample
-    3rdparty
+    d3dx12
     utils
+    imgui
     winpixruntime
     dxgi.lib
     d3d12.lib
     d3dcompiler.lib)
+
+target_compile_definitions(dxr_sample PRIVATE WIN32_LEAN_AND_MEAN)
+target_precompile_headers(dxr_sample PRIVATE stdafx.h)
 
 set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE")
 set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:WINDOWS")
@@ -42,4 +47,3 @@ add_custom_command(TARGET dxr_sample POST_BUILD
         "${CMAKE_BINARY_DIR}/dx12_sample/${CMAKE_CFG_INTDIR}/Sample.cso"
         "${CMAKE_BINARY_DIR}/dx12_sample/Sample.cso"
 )
-

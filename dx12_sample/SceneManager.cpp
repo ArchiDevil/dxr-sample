@@ -17,39 +17,26 @@ constexpr auto pi = 3.14159265f;
 const wchar_t* hitGroupNames[] = {L"MyHitGroup_Triangle"};
 const wchar_t* closestHitShaderNames[] = {L"ClosestHitShader_Triangle"};
 
-SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
-    UINT screenWidth,
-    UINT screenHeight,
-    CommandLineOptions cmdLineOpts,
-    ComPtr<ID3D12CommandQueue> pCmdQueue,
-    ComPtr<IDXGISwapChain3> pSwapChain,
-    RenderTargetManager* rtManager)
-    : _device(pDevice)
+SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceResources,
+                           UINT                                       screenWidth,
+                           UINT                                       screenHeight,
+                           CommandLineOptions                         cmdLineOpts,
+                           RenderTargetManager*                       rtManager,
+                           std::vector<std::shared_ptr<RenderTarget>> swapChainRTs)
+    : _deviceResources(deviceResources)
     , _screenWidth(screenWidth)
     , _screenHeight(screenHeight)
-    , _cmdQueue(pCmdQueue)
-    , _swapChain(pSwapChain)
-    , _frameIndex(pSwapChain->GetCurrentBackBufferIndex())
-    , _swapChainRTs(_swapChainRTs)
     , _rtManager(rtManager)
+    , _swapChainRTs(swapChainRTs)
     , _mainCamera(Graphics::ProjectionType::Perspective, 0.1f, 1000.f, 5.0f * pi / 18.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight))
-    , _meshManager(pDevice)
+    , _meshManager(_deviceResources->GetDevice())
 {
-    assert(pDevice);
-    assert(pCmdQueue);
-    assert(pSwapChain);
     assert(rtManager);
 
     _mainCamera.SetCenter({ 0.0f, 0.0f, 0.0f });
     _mainCamera.SetRadius(5.0f);
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
-
-    // Have to create Fence and Event.
-    ThrowIfFailed(pDevice->CreateFence(0,
-                                       D3D12_FENCE_FLAG_NONE,
-                                       IID_PPV_ARGS(&_frameFence)));
-    _frameEndEvent = CreateEvent(NULL, FALSE, FALSE, nullptr);
 
     CreateFrameResources();
     CreateRenderTargets();
@@ -58,12 +45,12 @@ SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
     CreateShaderTables();
     CreateCommandLists();
 
-    _sceneObjects.push_back(std::make_shared<SceneObject>(
-        _meshManager.CreateEmptyCube([this](CommandList& cmdList) { ExecuteCommandLists(cmdList); }), _device));
+    auto executor = [this](CommandList& cmdList) { ExecuteCommandList(cmdList); };
+
+    _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateEmptyCube(executor), deviceResources->GetDevice()));
     _sceneObjects.back()->Rotation(0.5f);
 
-    _sceneObjects.push_back(std::make_shared<SceneObject>(
-        _meshManager.CreateCube([this](CommandList& cmdList) { ExecuteCommandLists(cmdList); }), _device));
+    _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateCube(executor), deviceResources->GetDevice()));
     _sceneObjects.back()->Position({2.0, 0.0, 0.0});
 
     BuildTLAS();
@@ -71,10 +58,10 @@ SceneManager::SceneManager(ComPtr<ID3D12Device5> pDevice,
 
 SceneManager::~SceneManager()
 {
-    WaitCurrentFrame();
+    _deviceResources->WaitForCurrentFrame();
 }
 
-void SceneManager::DrawAll()
+void SceneManager::DrawScene()
 {
     std::vector<ID3D12CommandList*> cmdListArray;
     cmdListArray.reserve(16); // just to avoid any allocations
@@ -82,23 +69,21 @@ void SceneManager::DrawAll()
     PopulateCommandList();
     cmdListArray.push_back(_cmdList->GetInternal().Get());
 
-    _cmdQueue->ExecuteCommandLists(1, cmdListArray.data());
-
-    // Swap buffers
-    _swapChain->Present(0, 0);
-    WaitCurrentFrame();
+    _deviceResources->GetCommandQueue()->ExecuteCommandLists(1, cmdListArray.data());
 }
 
-void SceneManager::ExecuteCommandLists(const CommandList & commandList)
+void SceneManager::Present()
 {
-    {
-        PIXScopedEvent(_cmdQueue.Get(), 0, "Submitting");
-        std::array<ID3D12CommandList*, 1> cmdListsArray = { commandList.GetInternal().Get() };
-        _cmdQueue->ExecuteCommandLists((UINT)cmdListsArray.size(), cmdListsArray.data());
-    }
+    // Swap buffers
+    _deviceResources->GetSwapChain()->Present(0, 0);
+    _deviceResources->WaitForCurrentFrame();
+}
 
-    _fenceValue++;
-    WaitCurrentFrame();
+void SceneManager::ExecuteCommandList(const CommandList& commandList)
+{
+    std::array<ID3D12CommandList*, 1> cmdListsArray = {commandList.GetInternal().Get()};
+    _deviceResources->GetCommandQueue()->ExecuteCommandLists((UINT)cmdListsArray.size(), cmdListsArray.data());
+    _deviceResources->WaitForCurrentFrame();
 }
 
 Graphics::SphericalCamera& SceneManager::GetCamera()
@@ -106,27 +91,8 @@ Graphics::SphericalCamera& SceneManager::GetCamera()
     return _mainCamera;
 }
 
-void SceneManager::WaitCurrentFrame()
-{
-    PIXScopedEvent(_cmdQueue.Get(), 0, "Waiting for a fence");
-    uint64_t newFenceValue = _fenceValue;
-
-    ThrowIfFailed(_cmdQueue->Signal(_frameFence.Get(), newFenceValue));
-    _fenceValue++;
-
-    if (_frameFence->GetCompletedValue() != newFenceValue)
-    {
-        ThrowIfFailed(_frameFence->SetEventOnCompletion(newFenceValue, _frameEndEvent));
-        WaitForSingleObject(_frameEndEvent, INFINITE);
-    }
-
-    _frameIndex = _swapChain->GetCurrentBackBufferIndex();
-}
-
 void SceneManager::CreateRenderTargets()
 {
-    _swapChainRTs = _rtManager->CreateRenderTargetsForSwapChain(_swapChain);
-
     D3D12_RESOURCE_DESC dxrOutputDesc = {};
     dxrOutputDesc.Width               = _screenWidth;
     dxrOutputDesc.Height              = _screenHeight;
@@ -140,7 +106,7 @@ void SceneManager::CreateRenderTargets()
     D3D12_HEAP_PROPERTIES heapProps = {};
     heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
 
-    ThrowIfFailed(_device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
         &dxrOutputDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
         IID_PPV_ARGS(&_raytracingOutput)));
 
@@ -148,12 +114,12 @@ void SceneManager::CreateRenderTargets()
     heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     heapDesc.NumDescriptors = 100; // it should be enough :)
     heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    ThrowIfFailed(_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_rtsHeap)));
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_rtsHeap)));
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    _device->CreateUnorderedAccessView(_raytracingOutput.Get(), nullptr, &uavDesc, _rtsHeap->GetCPUDescriptorHandleForHeapStart());
+    _deviceResources->GetDevice()->CreateUnorderedAccessView(_raytracingOutput.Get(), nullptr, &uavDesc, _rtsHeap->GetCPUDescriptorHandleForHeapStart());
 
     // move resources into correct states to avoid DXDebug errors on first barrier calls
     //std::array<D3D12_RESOURCE_BARRIER, 5> barriers = {
@@ -164,7 +130,7 @@ void SceneManager::CreateRenderTargets()
     //    CD3DX12_RESOURCE_BARRIER::Transition(_mrtDepth->_texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE)
     //};
 
-    //CommandList temporaryCmdList {CommandListType::Direct, _device};
+    //CommandList temporaryCmdList {CommandListType::Direct, _deviceResources->GetDevice()};
     //temporaryCmdList.GetInternal()->ResourceBarrier((UINT)barriers.size(), barriers.data());
     //temporaryCmdList.Close();
 
@@ -223,17 +189,18 @@ void SceneManager::PopulateCommandList()
     _cmdList->GetInternal()->SetComputeRootConstantBufferView(2, _lightParams->GetGPUVirtualAddress());
     _cmdList->GetInternal()->DispatchRays(&desc);
 
+    size_t frameIndex = _deviceResources->GetSwapChain()->GetCurrentBackBufferIndex();
     {
-        auto transition = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[_frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        auto transition = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
         _cmdList->GetInternal()->ResourceBarrier(1, &transition);
     }
 
-    auto rtBuffer = _swapChainRTs[_frameIndex].get();
+    auto rtBuffer = _swapChainRTs[frameIndex].get();
     _rtManager->ClearRenderTarget(*rtBuffer, *_cmdList);
 
     {
         std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
-        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[_frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
+        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
         transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
         _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
     }
@@ -243,7 +210,7 @@ void SceneManager::PopulateCommandList()
     // Indicate that the back buffer will be used as a render target.
     {
         std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
-        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[_frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
+        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
         transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
     }
@@ -253,7 +220,7 @@ void SceneManager::PopulateCommandList()
 
 void SceneManager::CreateCommandLists()
 {
-    _cmdList = std::make_unique<CommandList>(CommandListType::Direct, _device);
+    _cmdList = std::make_unique<CommandList>(CommandListType::Direct, _deviceResources->GetDevice());
     _cmdList->Close();
 }
 
@@ -269,8 +236,8 @@ void SceneManager::CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource
     constantBufferDesc.Layout              = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
     D3D12_HEAP_PROPERTIES heapProp = {D3D12_HEAP_TYPE_UPLOAD};
-    ThrowIfFailed(_device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &constantBufferDesc, initialState,
-                                                   nullptr, IID_PPV_ARGS(&(*pOutBuffer))));
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateCommittedResource(
+        &heapProp, D3D12_HEAP_FLAG_NONE, &constantBufferDesc, initialState, nullptr, IID_PPV_ARGS(&(*pOutBuffer))));
 }
 
 void SceneManager::CreateUAVBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState)
@@ -285,9 +252,9 @@ void SceneManager::CreateUAVBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pO
     bufferDesc.Layout              = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
     bufferDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
-    D3D12_HEAP_PROPERTIES heapProp = { D3D12_HEAP_TYPE_DEFAULT};
-    ThrowIfFailed(_device->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &bufferDesc, initialState,
-                                                   nullptr, IID_PPV_ARGS(&(*pOutBuffer))));
+    D3D12_HEAP_PROPERTIES heapProp = {D3D12_HEAP_TYPE_DEFAULT};
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateCommittedResource(
+        &heapProp, D3D12_HEAP_FLAG_NONE, &bufferDesc, initialState, nullptr, IID_PPV_ARGS(&(*pOutBuffer))));
 }
 
 std::vector<char> readBytecode(const std::string& fileName)
@@ -381,7 +348,7 @@ void SceneManager::CreateRaytracingPSO()
     pDesc.NumSubobjects = subobjects.size();
     pDesc.pSubobjects = subobjects.data();
 
-    ThrowIfFailed(_device->CreateStateObject(&pDesc, IID_PPV_ARGS(&_raytracingState)));
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateStateObject(&pDesc, IID_PPV_ARGS(&_raytracingState)));
 }
 
 void SceneManager::CreateRootSignatures()
@@ -392,7 +359,7 @@ void SceneManager::CreateRootSignatures()
     _globalRootSignature[0].InitTableRange(1, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
     _globalRootSignature[1].InitAsCBV(0);
     _globalRootSignature[2].InitAsCBV(1);
-    _globalRootSignature.Finalize(_device);
+    _globalRootSignature.Finalize(_deviceResources->GetDevice());
 }
 
 void SceneManager::CreateFrameResources()
@@ -432,7 +399,7 @@ void SceneManager::UpdateObjects()
 
 void SceneManager::BuildTLAS()
 {
-    CommandList cmdList{CommandListType::Direct, _device};
+    CommandList cmdList{CommandListType::Direct, _deviceResources->GetDevice() };
 
     size_t objectsCount = _sceneObjects.size();
 
@@ -445,7 +412,7 @@ void SceneManager::BuildTLAS()
     inputs.pGeometryDescs = nullptr;
 
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuildInfo = {};
-    _device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuildInfo);
+    _deviceResources->GetDevice()->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &prebuildInfo);
     if (prebuildInfo.ResultDataMaxSizeInBytes == 0)
         throw std::runtime_error("Zeroed size");
 
@@ -486,15 +453,15 @@ void SceneManager::BuildTLAS()
     cmdList.GetInternal()->BuildRaytracingAccelerationStructure(&tlasDesc, 0, nullptr);
     cmdList.Close();
 
-    ExecuteCommandLists(cmdList);
+    ExecuteCommandList(cmdList);
 
     D3D12_CPU_DESCRIPTOR_HANDLE heapHandle = _rtsHeap->GetCPUDescriptorHandleForHeapStart();
-    heapHandle.ptr += _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    heapHandle.ptr += _deviceResources->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
     srvDesc.RaytracingAccelerationStructure.Location = _tlas->GetGPUVirtualAddress();
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-    _device->CreateShaderResourceView(nullptr, &srvDesc, heapHandle);
+    _deviceResources->GetDevice()->CreateShaderResourceView(nullptr, &srvDesc, heapHandle);
 }
