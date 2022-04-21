@@ -17,6 +17,8 @@ set(SRC
     SceneObject.cpp
     SceneObject.h
     Shaders.h
+    ShaderTable.cpp
+    ShaderTable.h
     SphericalCamera.cpp
     SphericalCamera.h
     Types.h

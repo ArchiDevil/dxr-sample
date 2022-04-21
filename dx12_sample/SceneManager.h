@@ -1,18 +1,19 @@
 #pragma once
 
+#include "stdafx.h"
+
 #include "DeviceResources.h"
 
-#include <utils/RenderTargetManager.h>
+#include <utils/CommandList.h>
 #include <utils/ComputePipelineState.h>
 #include <utils/GraphicsPipelineState.h>
 #include <utils/MeshManager.h>
+#include <utils/RenderTargetManager.h>
 #include <utils/RootSignature.h>
 #include <utils/SceneObject.h>
-#include <utils/CommandList.h>
-#include <utils/Types.h>
+#include <utils/ShaderTable.h>
 #include <utils/SphericalCamera.h>
-
-#include "stdafx.h"
+#include <utils/Types.h>
 
 class SceneManager
 {
@@ -71,9 +72,9 @@ private:
     RootSignature                               _localRootSignature;
 
     // shader tables
-    ComPtr<ID3D12Resource>                      _raygenTable = nullptr;
-    ComPtr<ID3D12Resource>                      _missTable = nullptr;
-    ComPtr<ID3D12Resource>                      _hitTable = nullptr;
+    std::unique_ptr<ShaderTable>                 _raygenTable;
+    std::unique_ptr<ShaderTable>                 _missTable;
+    std::unique_ptr<ShaderTable>                 _hitTable;
 
     // output resources
     ComPtr<ID3D12DescriptorHeap>                _rtsHeap = nullptr;
