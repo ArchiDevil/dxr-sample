@@ -20,7 +20,14 @@
     - [x] Start using multiple objects
     - [x] Create something like objects manager
     - [x] Start using local root signatures and bindings
-    - [ ] Generate or load a scene
+    - [ ] Implement simplest materials system (to use different hit shaders)
+    - [ ] Implement possibility to create objects externally out of SceneManager
+        - [ ] Scene manager must provide interface to create objects
+        - [ ] Scene manager must provide interface to pass a custom geometry
+    - [ ] Generate a geometry of an island using Perlin noise
+        - [ ] Generate cubes for a noise data
+        - [ ] Generate geometry using a marching triangles algorithm
+    - [ ] Generate a geometry for water
 - [ ] Add textures
 - [ ] Add a separate pass using a convenient rendering (like a depth pass)
 - [ ] Add shadows & AO
@@ -34,12 +41,22 @@
 
 - [ ] Switch to C++20 -- EASY
 - [ ] Implement procedural generation of simple objects: -- EASY
-- [ ] Implement scene tree with configurable parameters -- MEDIUM
     - [ ] Sphere
     - [ ] Torus
+- [ ] Implement scene tree with configurable parameters -- MEDIUM
 - [ ] Implement in-app profiler (configurable) to measure: -- MEDIUM
     - [ ] TLAS building time
     - [ ] Ray tracing pass
     - [ ] UI drawing pass
 - [ ] Implement microsurface BRDF -- HARD
 - [ ] Switch to linear rendering with color-correction -- HARD
+
+## Scene description
+
+The main idea is to have an island in a sea:
+- A landmass is generated procedurally using a Perlin noise.
+- The geometry is tessellated using either cubes or marching triangles.
+- Water is moving. OPTIONAL
+- There are trees, stones, grass on the island. OPTIONAL
+- There are volumetric clouds and a sun.
+- There are possibility to change day time. OPTIONAL
