@@ -6,6 +6,7 @@
 
 #include <utils/CommandList.h>
 #include <utils/ComputePipelineState.h>
+#include <utils/DescriptorHeap.h>
 #include <utils/GraphicsPipelineState.h>
 #include <utils/MeshManager.h>
 #include <utils/RenderTargetManager.h>
@@ -41,7 +42,7 @@ public:
 
     Graphics::SphericalCamera& GetCamera();
     void SetLightColor(float r, float g, float b);
-    void SetLightPos(float x, float y, float z);
+    void SetLightDirection(float x, float y, float z);
     void SetAmbientColor(float r, float g, float b);
 
 private:
@@ -59,43 +60,47 @@ private:
     void BuildTLAS();
 
     // context objects
-    std::shared_ptr<DeviceResources>            _deviceResources;
+    std::shared_ptr<DeviceResources> _deviceResources;
 
     // command-lists
-    std::unique_ptr<CommandList>                _cmdList = nullptr;
+    std::unique_ptr<CommandList> _cmdList = nullptr;
 
     // pipeline states for every object
-    ComPtr<ID3D12StateObject>                    _raytracingState = nullptr;
+    ComPtr<ID3D12StateObject> _raytracingState = nullptr;
 
     // root signatures
-    RootSignature                               _globalRootSignature;
-    RootSignature                               _localRootSignature;
+    RootSignature _globalRootSignature;
+    RootSignature _localRootSignature;
 
     // shader tables
-    std::unique_ptr<ShaderTable>                 _raygenTable;
-    std::unique_ptr<ShaderTable>                 _missTable;
-    std::unique_ptr<ShaderTable>                 _hitTable;
+    std::unique_ptr<ShaderTable> _raygenTable;
+    std::unique_ptr<ShaderTable> _missTable;
+    std::unique_ptr<ShaderTable> _hitTable;
 
     // output resources
-    ComPtr<ID3D12DescriptorHeap>                _rtsHeap = nullptr;
-    ComPtr<ID3D12Resource>                      _raytracingOutput = nullptr;
+    DescriptorHeap         _descriptorHeap;
+    ComPtr<ID3D12Resource> _raytracingOutput = nullptr;
+
+    // renderer resources
+    std::size_t _dispatchUavIdx = 0;
+    std::size_t _tlasIdx        = 0;
 
     // frame resources
-    ComPtr<ID3D12Resource>                      _viewParams = nullptr;
-    ComPtr<ID3D12Resource>                      _lightParams = nullptr;
-    ComPtr<ID3D12Resource>                      _tlas       = nullptr;
+    ComPtr<ID3D12Resource> _viewParams  = nullptr;
+    ComPtr<ID3D12Resource> _lightParams = nullptr;
+    ComPtr<ID3D12Resource> _tlas        = nullptr;
 
     // other objects
-    UINT                                        _screenWidth = 0;
-    UINT                                        _screenHeight = 0;
-    std::vector<std::shared_ptr<RenderTarget>>  _swapChainRTs;
-    RenderTargetManager *                       _rtManager = nullptr;
-    std::shared_ptr<RenderTarget>               _HDRRt = nullptr;
-    Graphics::SphericalCamera                   _mainCamera;
-    MeshManager                                 _meshManager;
-    std::vector<SceneObjectPtr>                 _sceneObjects;
+    UINT                                       _screenWidth  = 0;
+    UINT                                       _screenHeight = 0;
+    std::vector<std::shared_ptr<RenderTarget>> _swapChainRTs;
+    RenderTargetManager*                       _rtManager = nullptr;
+    std::shared_ptr<RenderTarget>              _HDRRt     = nullptr;
+    Graphics::SphericalCamera                  _mainCamera;
+    MeshManager                                _meshManager;
+    std::vector<SceneObjectPtr>                _sceneObjects;
 
-    float                                       _lightColors[3];
-    float                                       _lightPos[3];
-    float                                       _ambientColor[3];
+    float _lightColors[3];
+    float _lightDir[3];
+    float _ambientColor[3];
 };

@@ -65,12 +65,7 @@ uint3 LoadIndices(uint primitiveIndex)
     uint shift = stride * primitiveIndex;
 
     uint3 output = uint3(0, 0, 0);
-    for (int i = 0; i < 3; ++i)
-    {
-        uint indexBytes = indexBuffer.Load(shift + i);
-        output[i] = indexBytes;
-    }
-
+    output = indexBuffer.Load3(shift);
     return output;
 }
 
@@ -84,13 +79,15 @@ float3 Interpolate(float3 attribute1, float3 attribute2, float3 attribute3, floa
     return attribute1 * barycentrics.x + attribute2 * barycentrics.y + attribute3 * barycentrics.z;
 }
 
-GeometryVertex LoadAndInterpolate(uint3 indices, float3 barycentrics)
+GeometryVertex LoadAndInterpolate(uint3 indices, in BuiltInTriangleIntersectionAttributes attr)
 {
     GeometryVertex v1, v2, v3;
-    v1 = vertexBuffer.Load(indices.x);
-    v2 = vertexBuffer.Load(indices.y);
-    v3 = vertexBuffer.Load(indices.z);
-    
+    v1 = vertexBuffer[indices.x];
+    v2 = vertexBuffer[indices.y];
+    v3 = vertexBuffer[indices.z];
+
+    float3 barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
+
     GeometryVertex output;
     output.position = Interpolate(v1.position, v2.position, v3.position, barycentrics);
     output.normal = Interpolate(v1.normal, v2.normal, v3.normal, barycentrics);
@@ -100,20 +97,41 @@ GeometryVertex LoadAndInterpolate(uint3 indices, float3 barycentrics)
     return output;
 }
 
-[shader("closesthit")]
-void ClosestHitShader_Triangle(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAttributes attr)
+float3 PhongDiffuse(float NoL, float3 lightColor, float3 albedo)
 {
-    float3 barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
+    return lightColor * albedo * saturate(NoL); // / 3.14159265;
+}
 
-    // Load vertices
-    GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), barycentrics);
+[shader("closesthit")]
+void SpecularShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAttributes attr)
+{
+    GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
 
     float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
-    float3 l = normalize(lightParams.direction.xyz);
+    float3 l = -normalize(lightParams.direction.xyz);
+    float NoL = dot(n, l);
+    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, modelParams.color.xyz);
 
-    float lightness = saturate(dot(n, l));
+    float3 currentPos = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
+    float3 r = reflect(normalize(currentPos - sceneParams.viewPos.xyz), n);
+    float3 specularColor = lightParams.color.xyz * pow(saturate(dot(r, l)), modelParams.reflectance);
 
-    float3 diffuseColor = modelParams.color.xyz * lightness * lightParams.color.xyz;
     float3 ambientColor = sceneParams.ambientColor.xyz;
+
+    rayPayload.color = float4(specularColor + diffuseColor + ambientColor, 1.0);
+}
+
+[shader("closesthit")]
+void DiffuseShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAttributes attr)
+{
+    GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
+
+    float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
+    float3 l = -normalize(lightParams.direction.xyz);
+    float NoL = dot(n, l);
+    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, modelParams.color.xyz);
+
+    float3 ambientColor = sceneParams.ambientColor.xyz;
+
     rayPayload.color = float4(diffuseColor + ambientColor, 1.0);
 }

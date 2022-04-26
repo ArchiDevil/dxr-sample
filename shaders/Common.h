@@ -9,6 +9,10 @@
 #    define float4x4 DirectX::XMMATRIX
 #endif
 
+#ifndef __cplusplus
+#    define alignas(x)
+#endif
+
 struct ViewParams
 {
     float4x4 inverseViewProj;
@@ -26,6 +30,7 @@ struct ModelParams
 {
     float4   color;
     float4x4 worldMatrix;
+    float reflectance;
 };
 
 struct GeometryVertex

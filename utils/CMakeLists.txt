@@ -3,6 +3,8 @@ set(SRC
     CommandList.h
     ComputePipelineState.cpp
     ComputePipelineState.h
+    DescriptorHeap.cpp
+    DescriptorHeap.h
     DXSampleHelper.h
     FeaturesCollector.h
     Math.h
@@ -10,6 +12,8 @@ set(SRC
     GraphicsPipelineState.h
     MeshManager.cpp
     MeshManager.h
+    MeshObject.cpp
+    MeshObject.h
     RenderTargetManager.cpp
     RenderTargetManager.h
     RootSignature.cpp

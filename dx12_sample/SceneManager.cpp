@@ -11,7 +11,6 @@
 #include <random>
 
 constexpr auto pi = 3.14159265f;
-static constexpr uint32_t localRootSignatureBindingsCount = 3;
 
 SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceResources,
                            UINT                                       screenWidth,
@@ -24,12 +23,18 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
     , _screenHeight(screenHeight)
     , _rtManager(rtManager)
     , _swapChainRTs(swapChainRTs)
-    , _mainCamera(Graphics::ProjectionType::Perspective, 0.1f, 1000.f, 5.0f * pi / 18.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight))
+    , _mainCamera(Graphics::ProjectionType::Perspective,
+                  0.1f,
+                  1000.f,
+                  5.0f * pi / 18.0f,
+                  static_cast<float>(screenWidth),
+                  static_cast<float>(screenHeight))
     , _meshManager(_deviceResources->GetDevice())
+    , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128)
 {
     assert(rtManager);
 
-    _mainCamera.SetCenter({ 0.0f, 0.0f, 0.0f });
+    _mainCamera.SetCenter({0.0f, 0.0f, 0.0f});
     _mainCamera.SetRadius(5.0f);
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
@@ -42,14 +47,26 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
 
     auto executor = [this](CommandList& cmdList) { ExecuteCommandList(cmdList); };
 
-    _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateEmptyCube(executor), deviceResources->GetDevice()));
-    _sceneObjects.back()->Rotation(0.5f);
+    {
+        _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateEmptyCube(executor), _descriptorHeap,
+                                                              deviceResources->GetDevice(), Material{MaterialType::Diffuse}));
 
-    _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateCube(executor), deviceResources->GetDevice()));
-    _sceneObjects.back()->Position({2.0, 0.0, 0.0});
+        DiffuseMaterial& mtl = std::get<DiffuseMaterial>(_sceneObjects.back()->GetMaterial().GetParams());
+        mtl.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
+        _sceneObjects.back()->Rotation(0.5f);
+    }
+
+    {
+        _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateCube(executor), _descriptorHeap,
+                                                              deviceResources->GetDevice(), Material(MaterialType::Specular)));
+
+        SpecularMaterial& mtl = std::get<SpecularMaterial>(_sceneObjects.back()->GetMaterial().GetParams());
+        mtl.reflectance       = 350.0f;
+        mtl.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
+        _sceneObjects.back()->Position({2.0, 0.0, 0.0});
+    }
 
     CreateShaderTables();
-
     BuildTLAS();
 }
 
@@ -95,11 +112,11 @@ void SceneManager::SetLightColor(float r, float g, float b)
     _lightColors[2] = b;
 }
 
-void SceneManager::SetLightPos(float x, float y, float z)
+void SceneManager::SetLightDirection(float x, float y, float z)
 {
-    _lightPos[0] = x;
-    _lightPos[1] = y;
-    _lightPos[2] = z;
+    _lightDir[0] = x;
+    _lightDir[1] = y;
+    _lightDir[2] = z;
 }
 
 void SceneManager::SetAmbientColor(float r, float g, float b)
@@ -128,39 +145,22 @@ void SceneManager::CreateRenderTargets()
         &dxrOutputDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
         IID_PPV_ARGS(&_raytracingOutput)));
 
-    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-    heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    heapDesc.NumDescriptors = 100; // it should be enough :)
-    heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    ThrowIfFailed(_deviceResources->GetDevice()->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_rtsHeap)));
+    auto heapHandle = _descriptorHeap.GetFreeCPUAddress();
+    _dispatchUavIdx = heapHandle.index;
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    _deviceResources->GetDevice()->CreateUnorderedAccessView(_raytracingOutput.Get(), nullptr, &uavDesc, _rtsHeap->GetCPUDescriptorHandleForHeapStart());
-
-    // move resources into correct states to avoid DXDebug errors on first barrier calls
-    //std::array<D3D12_RESOURCE_BARRIER, 5> barriers = {
-    //    CD3DX12_RESOURCE_BARRIER::Transition(_mrtRts[0]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-    //    CD3DX12_RESOURCE_BARRIER::Transition(_mrtRts[1]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-    //    CD3DX12_RESOURCE_BARRIER::Transition(_mrtRts[2]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-    //    CD3DX12_RESOURCE_BARRIER::Transition(_HDRRt->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-    //    CD3DX12_RESOURCE_BARRIER::Transition(_mrtDepth->_texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE)
-    //};
-
-    //CommandList temporaryCmdList {CommandListType::Direct, _deviceResources->GetDevice()};
-    //temporaryCmdList.GetInternal()->ResourceBarrier((UINT)barriers.size(), barriers.data());
-    //temporaryCmdList.Close();
-
-    //ExecuteCommandLists(temporaryCmdList);
+    _deviceResources->GetDevice()->CreateUnorderedAccessView(_raytracingOutput.Get(), nullptr, &uavDesc, heapHandle.handle);
 }
 
 void SceneManager::CreateShaderTables()
 {
+    constexpr uint32_t lrsBindingsCount = 2;
+
     _raygenTable = std::make_unique<ShaderTable>(1, 0, _deviceResources->GetDevice());
     _missTable   = std::make_unique<ShaderTable>(1, 0, _deviceResources->GetDevice());
-    _hitTable    = std::make_unique<ShaderTable>(_sceneObjects.size(),
-                                              localRootSignatureBindingsCount * sizeof(D3D12_GPU_VIRTUAL_ADDRESS),
+    _hitTable = std::make_unique<ShaderTable>(_sceneObjects.size(), lrsBindingsCount * sizeof(D3D12_GPU_VIRTUAL_ADDRESS),
                                               _deviceResources->GetDevice());
 
     ComPtr<ID3D12StateObjectProperties> props;
@@ -172,15 +172,27 @@ void SceneManager::CreateShaderTables()
     // fill shader tables with scene objects data
     for (std::size_t i = 0; i < _sceneObjects.size(); i++)
     {
-        std::vector<D3D12_GPU_VIRTUAL_ADDRESS> data;
-        data.reserve(localRootSignatureBindingsCount);
+        auto& object = _sceneObjects[i];
 
-        data.push_back(_sceneObjects[i]->GetConstantBuffer()->GetGPUVirtualAddress());
-        data.push_back(_sceneObjects[i]->GetVertexBuffer()->GetGPUVirtualAddress());
-        data.push_back(_sceneObjects[i]->GetIndexBuffer()->GetGPUVirtualAddress());
+        std::vector<uint64_t> data;
+        data.reserve(lrsBindingsCount);
 
-        _hitTable->AddEntry(i, ShaderEntry{props->GetShaderIdentifier(L"MyHitGroup_Triangle"), data.data(),
-                                           data.size() * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)});
+        auto buffersHandle = _descriptorHeap.GetGPUAddress(object->GetDescriptorIdx());
+        data.push_back(object->GetConstantBuffer()->GetGPUVirtualAddress());
+        data.push_back(buffersHandle.ptr);
+
+        void* shaderIdentifier = nullptr;
+        switch (object->GetMaterial().GetType())
+        {
+        case MaterialType::Diffuse:
+            shaderIdentifier = props->GetShaderIdentifier(L"DiffuseHitGroup");
+            break;
+        case MaterialType::Specular:
+            shaderIdentifier = props->GetShaderIdentifier(L"SpecularHitGroup");
+            break;
+        }
+
+        _hitTable->AddEntry(i, ShaderEntry{shaderIdentifier, data.data(), data.size() * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)});
     }
 }
 
@@ -208,12 +220,13 @@ void SceneManager::PopulateCommandList()
     _cmdList->Reset();
     _cmdList->GetInternal()->SetPipelineState1(_raytracingState.Get());
 
-    ID3D12DescriptorHeap* heap = _rtsHeap.Get();
-    _cmdList->GetInternal()->SetDescriptorHeaps(1, &heap);
+    ID3D12DescriptorHeap* heaps[] = { _descriptorHeap.GetResource().Get()};
+    _cmdList->GetInternal()->SetDescriptorHeaps(1, heaps);
     _cmdList->GetInternal()->SetComputeRootSignature(_globalRootSignature.GetInternal().Get());
-    _cmdList->GetInternal()->SetComputeRootDescriptorTable(0, heap->GetGPUDescriptorHandleForHeapStart());
-    _cmdList->GetInternal()->SetComputeRootConstantBufferView(1, _viewParams->GetGPUVirtualAddress());
-    _cmdList->GetInternal()->SetComputeRootConstantBufferView(2, _lightParams->GetGPUVirtualAddress());
+    _cmdList->GetInternal()->SetComputeRootDescriptorTable(0, _descriptorHeap.GetGPUAddress(_dispatchUavIdx));
+    _cmdList->GetInternal()->SetComputeRootDescriptorTable(1, _descriptorHeap.GetGPUAddress(_tlasIdx));
+    _cmdList->GetInternal()->SetComputeRootConstantBufferView(2, _viewParams->GetGPUVirtualAddress());
+    _cmdList->GetInternal()->SetComputeRootConstantBufferView(3, _lightParams->GetGPUVirtualAddress());
     _cmdList->GetInternal()->DispatchRays(&desc);
 
     size_t frameIndex = _deviceResources->GetSwapChain()->GetCurrentBackBufferIndex();
@@ -315,10 +328,11 @@ void SceneManager::CreateRaytracingPSO()
     library_desc.DXILLibrary.pShaderBytecode = bytes.data();
     library_desc.DXILLibrary.BytecodeLength = bytes.size();
 
-    std::vector<D3D12_EXPORT_DESC> exports(3);
-    exports[0].Name = L"RayGenShader";
-    exports[1].Name = L"MissShader";
-    exports[2].Name = L"ClosestHitShader_Triangle";
+    std::vector<D3D12_EXPORT_DESC> exports;
+    exports.push_back(D3D12_EXPORT_DESC{ L"RayGenShader" });
+    exports.push_back(D3D12_EXPORT_DESC{ L"MissShader" });
+    exports.push_back(D3D12_EXPORT_DESC{ L"DiffuseShader" });
+    exports.push_back(D3D12_EXPORT_DESC{ L"SpecularShader" });
 
     library_desc.NumExports = exports.size();
     library_desc.pExports = exports.data();
@@ -331,14 +345,25 @@ void SceneManager::CreateRaytracingPSO()
         subobjects.emplace_back(library);
     }
 
-    D3D12_HIT_GROUP_DESC hitGroupDesc   = {};
-    hitGroupDesc.Type = D3D12_HIT_GROUP_TYPE::D3D12_HIT_GROUP_TYPE_TRIANGLES;
-    hitGroupDesc.HitGroupExport = L"MyHitGroup_Triangle";
-    hitGroupDesc.ClosestHitShaderImport = L"ClosestHitShader_Triangle";
+    D3D12_HIT_GROUP_DESC hitGroupDesc1   = {};
+    hitGroupDesc1.Type = D3D12_HIT_GROUP_TYPE::D3D12_HIT_GROUP_TYPE_TRIANGLES;
+    hitGroupDesc1.HitGroupExport = L"DiffuseHitGroup";
+    hitGroupDesc1.ClosestHitShaderImport = L"DiffuseShader";
     {
         D3D12_STATE_SUBOBJECT hitGroupSubobject = {};
         hitGroupSubobject.Type  = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
-        hitGroupSubobject.pDesc = &hitGroupDesc;
+        hitGroupSubobject.pDesc = &hitGroupDesc1;
+        subobjects.emplace_back(hitGroupSubobject);
+    }
+
+    D3D12_HIT_GROUP_DESC hitGroupDesc2 = {};
+    hitGroupDesc2.Type = D3D12_HIT_GROUP_TYPE::D3D12_HIT_GROUP_TYPE_TRIANGLES;
+    hitGroupDesc2.HitGroupExport = L"SpecularHitGroup";
+    hitGroupDesc2.ClosestHitShaderImport = L"SpecularShader";
+    {
+        D3D12_STATE_SUBOBJECT hitGroupSubobject = {};
+        hitGroupSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+        hitGroupSubobject.pDesc = &hitGroupDesc2;
         subobjects.emplace_back(hitGroupSubobject);
     }
 
@@ -389,18 +414,21 @@ void SceneManager::CreateRaytracingPSO()
 
 void SceneManager::CreateRootSignatures()
 {
-    _globalRootSignature.Init(3, 0);
-    _globalRootSignature[0].InitAsDescriptorsTable(2); // Output UAV
+    _globalRootSignature.Init(4, 0);
+    _globalRootSignature[0].InitAsDescriptorsTable(1); // Output UAV
     _globalRootSignature[0].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
-    _globalRootSignature[0].InitTableRange(1, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
-    _globalRootSignature[1].InitAsCBV(0);
-    _globalRootSignature[2].InitAsCBV(1);
+
+    _globalRootSignature[1].InitAsDescriptorsTable(1); // TLAS
+    _globalRootSignature[1].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
+
+    _globalRootSignature[2].InitAsCBV(0);
+    _globalRootSignature[3].InitAsCBV(1);
     _globalRootSignature.Finalize(_deviceResources->GetDevice());
 
-    _localRootSignature.Init(3, 0);
+    _localRootSignature.Init(2, 0);
     _localRootSignature[0].InitAsCBV(2);
-    _localRootSignature[1].InitAsSRV(1);
-    _localRootSignature[2].InitAsSRV(2);
+    _localRootSignature[1].InitAsDescriptorsTable(1); // VB/IB views
+    _localRootSignature[1].InitTableRange(0, 1, 2, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
     _localRootSignature.Finalize(_deviceResources->GetDevice(), D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE);
 }
 
@@ -427,7 +455,7 @@ void SceneManager::UpdateObjects()
 
     ThrowIfFailed(_lightParams->Map(0, nullptr, &sceneData));
 
-    ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({ _lightPos[0], _lightPos[1], _lightPos[2], 1.0});
+    ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({ _lightDir[0], _lightDir[1], _lightDir[2], 1.0});
     ((LightParams*)sceneData)->color     = DirectX::XMVECTOR({_lightColors[0], _lightColors[1], _lightColors[2], 1.0});
 
     _sceneObjects.back()->Rotation(_sceneObjects.back()->Rotation() + 0.01f);
@@ -473,7 +501,7 @@ void SceneManager::BuildTLAS()
         instancesDesc.emplace_back();
 
         D3D12_RAYTRACING_INSTANCE_DESC& instanceDesc     = instancesDesc.back();
-        instanceDesc.AccelerationStructure               = _sceneObjects[idx]->GetBLAS()->GetGPUVirtualAddress();
+        instanceDesc.AccelerationStructure               = _sceneObjects[idx]->GetMeshObject().BLAS()->GetGPUVirtualAddress();
         instanceDesc.InstanceContributionToHitGroupIndex = idx;
         instanceDesc.InstanceMask                        = 1;
 
@@ -500,8 +528,17 @@ void SceneManager::BuildTLAS()
 
     ExecuteCommandList(cmdList);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE heapHandle = _rtsHeap->GetCPUDescriptorHandleForHeapStart();
-    heapHandle.ptr += _deviceResources->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_CPU_DESCRIPTOR_HANDLE heapHandle;
+    if (!_tlasIdx)
+    {
+        auto address = _descriptorHeap.GetFreeCPUAddress();
+        _tlasIdx = address.index;
+        heapHandle = address.handle;
+    }
+    else
+    {
+        heapHandle = _descriptorHeap.GetCPUAddress(_tlasIdx);
+    }
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;

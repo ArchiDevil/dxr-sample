@@ -119,7 +119,7 @@ void DX12Sample::OnRender()
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         static ImVec4 ambientColor{ 0.1f, 0.1f, 0.1f, 1.0f };
         static ImVec4 lightColor{1.0f, 1.0f, 1.0f, 1.0f};
-        static ImVec4 lightPos{ 0.75f, 1.0f, 0.2f, 1.0f };
+        static ImVec4 lightDir{ 0.75f, -1.0f, 0.2f, 1.0f };
 
         ImVec2 window_pos;
         window_pos.x = viewport->WorkPos.x + padding;
@@ -139,12 +139,12 @@ void DX12Sample::OnRender()
         ImGui::Text("Z: %.3f", _sceneManager->GetCamera().GetEyePosition().z);
         ImGui::ColorEdit3("Ambient color", (float*)&ambientColor);
         ImGui::ColorEdit3("Light color", (float*)&lightColor);
-        ImGui::SliderFloat3("Light position", (float*)&lightPos, -1.0f, 1.0f);
+        ImGui::SliderFloat3("Light direction", (float*)&lightDir, -1.0f, 1.0f);
         ImGui::End();
 
         _sceneManager->SetAmbientColor(ambientColor.x, ambientColor.y, ambientColor.z);
         _sceneManager->SetLightColor(lightColor.x, lightColor.y, lightColor.z);
-        _sceneManager->SetLightPos(lightPos.x, lightPos.y, lightPos.z);
+        _sceneManager->SetLightDirection(lightDir.x, lightDir.y, lightDir.z);
     }
 
     // Rendering
