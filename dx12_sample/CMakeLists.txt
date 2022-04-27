@@ -8,6 +8,11 @@ set(SRC
     SceneManager.cpp
     SceneManager.h
     stdafx.h
+    
+    worldgen/Noise.cpp
+    worldgen/Noise.h
+    worldgen/WorldGen.cpp
+    worldgen/WorldGen.h
 )
 
 add_executable(dxr_sample ${SRC})
