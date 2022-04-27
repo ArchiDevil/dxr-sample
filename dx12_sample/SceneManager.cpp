@@ -488,35 +488,40 @@ std::shared_ptr<SceneObject> SceneManager::CreateAxis()
 
 void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int islandSize)
 {
-    if (vertices.size() > index + islandSize + 2)
-    {
-        GeometryVertex& vertex1 = vertices[index];
-        const float3& position = vertex1.position;
-        DirectX::FXMVECTOR pos1 = DirectX::FXMVECTOR({position.x, position.y, position.z});
+    auto& calcNorm = [&vertices](uint32_t i1, uint32_t i2, uint32_t i3) {
+        GeometryVertex&    vertex1  = vertices[i1];
+        const float3&      position = vertex1.position;
+        DirectX::FXMVECTOR pos1     = DirectX::FXMVECTOR({position.x, position.y, position.z});
 
-        GeometryVertex&    vertex2  = vertices[index + 1];
+        GeometryVertex&    vertex2   = vertices[i2];
         const float3&      position2 = vertex2.position;
-        DirectX::FXMVECTOR pos2     = DirectX::FXMVECTOR({position2.x, position2.y, position2.z});
+        DirectX::FXMVECTOR pos2      = DirectX::FXMVECTOR({position2.x, position2.y, position2.z});
 
-        GeometryVertex&    vertex3   = vertices[index + islandSize + 1];
+        GeometryVertex&    vertex3   = vertices[i3];
         const float3&      position3 = vertex3.position;
         DirectX::FXMVECTOR pos3      = DirectX::FXMVECTOR({position3.x, position3.y, position3.z});
 
         XMVECTOR vector1 = DirectX::XMVectorSubtract(pos1, pos2);
         XMVECTOR vector2 = DirectX::XMVectorSubtract(pos1, pos3);
 
-        XMVECTOR cross = DirectX::XMVector3Cross(vector1, vector2);
-        DirectX::XMVECTOR norm   = DirectX::XMVector3Normalize(cross);
+        XMVECTOR          cross = DirectX::XMVector3Cross(vector1, vector2);
+        DirectX::XMVECTOR norm  = DirectX::XMVector3Normalize(cross);
 
         DirectX::XMStoreFloat3(&vertex1.normal, norm);
         DirectX::XMStoreFloat3(&vertex2.normal, norm);
         DirectX::XMStoreFloat3(&vertex3.normal, norm);
+    };
+
+    if (vertices.size() > index + islandSize + 2)
+    {
+        calcNorm(index, index + 1, index + islandSize + 1);
+        calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
     }
 }
 
 std::shared_ptr<SceneObject> SceneManager::CreateIsland()
 {
-    int      islandSize = 200;
+    int      islandSize = 500;
     _worldGen.GenerateHeightMap(islandSize);
 
     std::vector<GeometryVertex> vertices;
