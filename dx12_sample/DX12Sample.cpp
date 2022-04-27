@@ -321,10 +321,9 @@ void DX12Sample::CreateObjects()
     specular2.reflectance       = 700.0f;
     specular2.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
 
-    auto              island     = _sceneManager->CreateIsland();
-    SpecularMaterial& specular4 = std::get<SpecularMaterial>(cube->GetMaterial().GetParams());
-    specular4.reflectance       = 5.0f;
-    specular4.color = {1.0f, float(216/255), float(91/255)};
+    auto             island         = _sceneManager->CreateIsland();
+    DiffuseMaterial& islandMaterial = std::get<DiffuseMaterial>(island->GetMaterial().GetParams());
+    islandMaterial.color            = {0.7f, 0.7f, 0.3f};
     island->Position({0.0, 2.0, 0.0});
 
     auto emptyCube = _sceneManager->CreateEmptyCube();

@@ -494,6 +494,8 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
     std::vector<GeometryVertex> vertices;
     vertices.reserve(islandSize * islandSize);
 
+    float islandWidth = 6.0f;
+
     for (int y = 0; y <= islandSize; ++y)
     {
         for (int x = 0; x <= islandSize; ++x)
@@ -501,9 +503,10 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
             int height = _worldGen.GetHeight(x, y);
 
             const float nz     = 0.015f * height;
-            const float nx     = -2.0f + 4.0f * ((float)x / islandSize);
-            const float ny     = -2.0f + 4.0f * ((float)y / islandSize);
-            vertices.emplace_back(GeometryVertex{{nx, ny, nz}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}});
+            const float nx = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
+            const float ny     = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
+            float3      normal = {0.0f, 1.0f, 0.0f};
+            vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}});
         }
     }
 
@@ -519,7 +522,7 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
         indices.emplace_back(i + 1);
     }
 
-    return CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
+    return CreateCustomObject(vertices, indices, Material{MaterialType::Diffuse});
 }
 
 std::shared_ptr<SceneObject> SceneManager::CreateCustomObject(const std::vector<GeometryVertex>& vertices,
