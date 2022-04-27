@@ -486,6 +486,42 @@ std::shared_ptr<SceneObject> SceneManager::CreateAxis()
     return CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
 }
 
+std::shared_ptr<SceneObject> SceneManager::CreateIsland()
+{
+    int      islandSize = 100;
+    _worldGen.GenerateHeightMap(islandSize);
+
+    std::vector<GeometryVertex> vertices;
+    vertices.reserve(islandSize * islandSize);
+
+    for (int y = 0; y <= islandSize; ++y)
+    {
+        for (int x = 0; x <= islandSize; ++x)
+        {
+            int height = _worldGen.GetHeight(x, y);
+
+            const float nz     = 0.015f * height;
+            const float nx     = -2.0f + 4.0f * ((float)x / islandSize);
+            const float ny     = -2.0f + 4.0f * ((float)y / islandSize);
+            vertices.emplace_back(GeometryVertex{{nx, ny, nz}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}});
+        }
+    }
+
+    std::vector<uint32_t> indices;
+    for (uint32_t i = 0; i < islandSize * islandSize -1; ++i)
+    {
+        indices.emplace_back(i);
+        indices.emplace_back(i+1);
+        indices.emplace_back(i + islandSize + 1);
+
+        indices.emplace_back(i + islandSize + 2);
+        indices.emplace_back(i + islandSize + 1);
+        indices.emplace_back(i + 1);
+    }
+
+    return CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
+}
+
 std::shared_ptr<SceneObject> SceneManager::CreateCustomObject(const std::vector<GeometryVertex>& vertices,
                                                               const std::vector<uint32_t>&       indices,
                                                               Material                           material)

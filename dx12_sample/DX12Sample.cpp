@@ -96,11 +96,11 @@ void DX12Sample::OnUpdate()
         elapsedTime -= 1.0;
     }
 
-    if (!_mouseSceneTracker.lBtnPressed)
-    {
-        _sceneManager->GetCamera().SetRotation(_sceneManager->GetCamera().GetCameraPosition().rotation + dt * 10.0f );
-        return;
-    }
+    //if (!_mouseSceneTracker.lBtnPressed)
+    //{
+    //    _sceneManager->GetCamera().SetRotation(_sceneManager->GetCamera().GetCameraPosition().rotation + dt * 10.0f );
+    //    return;
+    //}
 
     float dx = _mouseSceneTracker.camPosition.rotation + _mouseSceneTracker.pressedPoint.x - _mouseSceneTracker.currPoint.x;
     float dy = _mouseSceneTracker.camPosition.inclination - _mouseSceneTracker.pressedPoint.y + _mouseSceneTracker.currPoint.y;
@@ -320,6 +320,12 @@ void DX12Sample::CreateObjects()
     SpecularMaterial& specular2 = std::get<SpecularMaterial>(cube->GetMaterial().GetParams());
     specular2.reflectance       = 700.0f;
     specular2.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
+
+    auto              island     = _sceneManager->CreateIsland();
+    SpecularMaterial& specular4 = std::get<SpecularMaterial>(cube->GetMaterial().GetParams());
+    specular4.reflectance       = 5.0f;
+    specular4.color = {1.0f, float(216/255), float(91/255)};
+    island->Position({0.0, 2.0, 0.0});
 
     auto emptyCube = _sceneManager->CreateEmptyCube();
     DiffuseMaterial& diffuse   = std::get<DiffuseMaterial>(emptyCube->GetMaterial().GetParams());

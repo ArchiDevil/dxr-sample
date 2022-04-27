@@ -268,7 +268,7 @@ double Noise::SimplexNoise(double x, double y, double z)
         ny = y;
         nz = z;
 
-        signal = SimplexNoise(nx, ny, nz);
+        signal = GetNoise(nx, ny, nz);
         value += signal * curPersistence;
 
         // Prepare the next octave.
@@ -296,7 +296,7 @@ double Noise::SimplexNoise(double x, double y)
         nx = x;
         ny = y;
 
-        signal = SimplexNoise(nx, ny);
+        signal = GetNoise(nx, ny);
         value += signal * curPersistence;
 
         // Prepare the next octave.

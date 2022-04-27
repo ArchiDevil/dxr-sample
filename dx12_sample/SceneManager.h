@@ -3,6 +3,7 @@
 #include "stdafx.h"
 
 #include "DeviceResources.h"
+#include "worldgen/WorldGen.h"
 
 #include <utils/CommandList.h>
 #include <utils/ComputePipelineState.h>
@@ -15,6 +16,8 @@
 #include <utils/ShaderTable.h>
 #include <utils/SphericalCamera.h>
 #include <utils/Types.h>
+
+class WorldGen;
 
 class SceneManager
 {
@@ -49,6 +52,7 @@ public:
     std::shared_ptr<SceneObject> CreateEmptyCube();
     std::shared_ptr<SceneObject> CreateCube();
     std::shared_ptr<SceneObject> CreateAxis();
+    std::shared_ptr<SceneObject> CreateIsland();
     std::shared_ptr<SceneObject> CreateCustomObject(const std::vector<GeometryVertex>& vertices,
                                                     const std::vector<uint32_t>&       indices,
                                                     Material                           material);
@@ -112,6 +116,8 @@ private:
     Graphics::SphericalCamera                  _mainCamera;
     MeshManager                                _meshManager;
     SceneObjects                               _sceneObjects;
+
+    WorldGen _worldGen;
 
     float _lightColors[3];
     float _lightDir[3];
