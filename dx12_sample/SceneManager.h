@@ -48,6 +48,7 @@ public:
 
     std::shared_ptr<SceneObject> CreateEmptyCube();
     std::shared_ptr<SceneObject> CreateCube();
+    std::shared_ptr<SceneObject> CreateAxis();
     std::shared_ptr<SceneObject> CreateCustomObject(const std::vector<GeometryVertex>& vertices,
                                                     const std::vector<uint32_t>&       indices,
                                                     Material                           material);
