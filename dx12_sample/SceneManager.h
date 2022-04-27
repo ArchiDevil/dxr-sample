@@ -20,6 +20,7 @@ class SceneManager
 {
 public:
     using SceneObjectPtr = std::shared_ptr<SceneObject>;
+    using SceneObjects   = std::vector<SceneObjectPtr>;
 
     SceneManager(std::shared_ptr<DeviceResources>           deviceResources,
                  UINT                                       screenWidth,
@@ -45,6 +46,12 @@ public:
     void SetLightDirection(float x, float y, float z);
     void SetAmbientColor(float r, float g, float b);
 
+    std::shared_ptr<SceneObject> CreateEmptyCube();
+    std::shared_ptr<SceneObject> CreateCube();
+    std::shared_ptr<SceneObject> CreateCustomObject(const std::vector<GeometryVertex>& vertices,
+                                                    const std::vector<uint32_t>&       indices,
+                                                    Material                           material);
+
 private:
     void CreateCommandLists();
     void CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState);
@@ -52,12 +59,17 @@ private:
     void CreateRaytracingPSO();
     void CreateRootSignatures();
     void CreateRenderTargets();
-    void CreateShaderTables();
     void CreateFrameResources();
 
-    void UpdateObjects();
+    void CreateRayGenMissTables();
+    void CreateHitTable();
+
     void PopulateCommandList();
     void BuildTLAS();
+
+    std::shared_ptr<SceneObject> CreateObject(std::shared_ptr<MeshObject> meshObject, Material material);
+    void                         UpdateObjects();
+    void                         CheckObjectsState();
 
     // context objects
     std::shared_ptr<DeviceResources> _deviceResources;
@@ -98,9 +110,11 @@ private:
     std::shared_ptr<RenderTarget>              _HDRRt     = nullptr;
     Graphics::SphericalCamera                  _mainCamera;
     MeshManager                                _meshManager;
-    std::vector<SceneObjectPtr>                _sceneObjects;
+    SceneObjects                               _sceneObjects;
 
     float _lightColors[3];
     float _lightDir[3];
     float _ambientColor[3];
+
+    bool _isObjectsChanged = false;
 };

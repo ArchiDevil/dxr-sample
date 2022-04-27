@@ -19,7 +19,7 @@ public:
     template<size_t N>
     void SetRenderTargetFormats(DXGI_FORMAT(&arr)[N])
     {
-        static_assert(N < countof(_description.RTVFormats), "Wrong array size.");
+        static_assert(N < _countof(_description.RTVFormats), "Wrong array size.");
         _description.NumRenderTargets = (UINT)N;
         for (size_t i = 0; i < N; ++i)
             _description.RTVFormats[i] = arr[i];

@@ -45,29 +45,7 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
     CreateRaytracingPSO();
     CreateCommandLists();
 
-    auto executor = [this](CommandList& cmdList) { ExecuteCommandList(cmdList); };
-
-    {
-        _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateEmptyCube(executor), _descriptorHeap,
-                                                              deviceResources->GetDevice(), Material{MaterialType::Diffuse}));
-
-        DiffuseMaterial& mtl = std::get<DiffuseMaterial>(_sceneObjects.back()->GetMaterial().GetParams());
-        mtl.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
-        _sceneObjects.back()->Rotation(0.5f);
-    }
-
-    {
-        _sceneObjects.push_back(std::make_shared<SceneObject>(_meshManager.CreateCube(executor), _descriptorHeap,
-                                                              deviceResources->GetDevice(), Material(MaterialType::Specular)));
-
-        SpecularMaterial& mtl = std::get<SpecularMaterial>(_sceneObjects.back()->GetMaterial().GetParams());
-        mtl.reflectance       = 350.0f;
-        mtl.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
-        _sceneObjects.back()->Position({2.0, 0.0, 0.0});
-    }
-
-    CreateShaderTables();
-    BuildTLAS();
+    CreateRayGenMissTables();
 }
 
 SceneManager::~SceneManager()
@@ -77,6 +55,8 @@ SceneManager::~SceneManager()
 
 void SceneManager::DrawScene()
 {
+    CheckObjectsState();
+
     std::vector<ID3D12CommandList*> cmdListArray;
     cmdListArray.reserve(16); // just to avoid any allocations
     UpdateObjects();
@@ -154,20 +134,27 @@ void SceneManager::CreateRenderTargets()
     _deviceResources->GetDevice()->CreateUnorderedAccessView(_raytracingOutput.Get(), nullptr, &uavDesc, heapHandle.handle);
 }
 
-void SceneManager::CreateShaderTables()
+void SceneManager::CreateRayGenMissTables()
 {
-    constexpr uint32_t lrsBindingsCount = 2;
-
     _raygenTable = std::make_unique<ShaderTable>(1, 0, _deviceResources->GetDevice());
     _missTable   = std::make_unique<ShaderTable>(1, 0, _deviceResources->GetDevice());
-    _hitTable = std::make_unique<ShaderTable>(_sceneObjects.size(), lrsBindingsCount * sizeof(D3D12_GPU_VIRTUAL_ADDRESS),
-                                              _deviceResources->GetDevice());
 
     ComPtr<ID3D12StateObjectProperties> props;
     ThrowIfFailed(_raytracingState->QueryInterface(props.GetAddressOf()));
 
     _raygenTable->AddEntry(0, ShaderEntry{props->GetShaderIdentifier(L"RayGenShader")});
     _missTable->AddEntry(0, ShaderEntry{props->GetShaderIdentifier(L"MissShader")});
+}
+
+void SceneManager::CreateHitTable()
+{
+    constexpr uint32_t lrsBindingsCount = 2;
+
+    _hitTable = std::make_unique<ShaderTable>(_sceneObjects.size(), lrsBindingsCount * sizeof(D3D12_GPU_VIRTUAL_ADDRESS),
+                                              _deviceResources->GetDevice());
+
+    ComPtr<ID3D12StateObjectProperties> props;
+    ThrowIfFailed(_raytracingState->QueryInterface(props.GetAddressOf()));
 
     // fill shader tables with scene objects data
     for (std::size_t i = 0; i < _sceneObjects.size(); i++)
@@ -438,6 +425,50 @@ void SceneManager::CreateFrameResources()
     CreateConstantBuffer(sizeof(LightParams), &_lightParams, D3D12_RESOURCE_STATE_GENERIC_READ);
 }
 
+std::shared_ptr<SceneObject> SceneManager::CreateObject(std::shared_ptr<MeshObject> meshObject, Material material)
+{
+    _isObjectsChanged = true;
+
+    return _sceneObjects.emplace_back(
+        std::make_shared<SceneObject>(
+            meshObject,
+            _descriptorHeap,
+            _deviceResources->GetDevice(),
+            material
+            )
+    );
+}
+
+std::shared_ptr<SceneObject> SceneManager::CreateEmptyCube()
+{
+    return CreateObject(
+        _meshManager.CreateEmptyCube([this](CommandList& cmdList) { ExecuteCommandList(cmdList); }),
+        Material{MaterialType::Diffuse}
+    );
+}
+
+std::shared_ptr<SceneObject> SceneManager::CreateCube()
+{
+    return CreateObject(
+        _meshManager.CreateCube([this](CommandList& cmdList) { ExecuteCommandList(cmdList); }),
+        Material(MaterialType::Specular)
+    );
+}
+
+std::shared_ptr<SceneObject> SceneManager::CreateCustomObject(const std::vector<GeometryVertex>& vertices,
+                                                              const std::vector<uint32_t>&       indices,
+                                                              Material                           material)
+{
+    return CreateObject(
+        _meshManager.CreateCustomObject(
+            vertices,
+            indices,
+            [this](CommandList& cmdList) { ExecuteCommandList(cmdList); }
+        ),
+        material
+    );
+}
+
 void SceneManager::UpdateObjects()
 {
     void* sceneData = nullptr;
@@ -468,6 +499,15 @@ void SceneManager::UpdateObjects()
         BuildTLAS();
         std::for_each(_sceneObjects.begin(), _sceneObjects.end(), [](SceneObjectPtr& object) { object->ResetDirty(); });
     }
+}
+
+void SceneManager::CheckObjectsState()
+{
+    if (!_isObjectsChanged)
+        return;
+
+    CreateHitTable();
+    _isObjectsChanged = false;
 }
 
 void SceneManager::BuildTLAS()

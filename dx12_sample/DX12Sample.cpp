@@ -46,6 +46,8 @@ void DX12Sample::OnInit()
     _sceneManager =
         std::make_unique<SceneManager>(_deviceResources, m_width, m_height, _cmdLineOpts, _RTManager.get(), _swapChainRTs);
 
+    CreateObjects();
+
     D3D12_DESCRIPTOR_HEAP_DESC imguiHeapDesc = {};
     imguiHeapDesc.NumDescriptors = 32;
     imguiHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -277,4 +279,18 @@ ComPtr<IDXGISwapChain3> DX12Sample::CreateSwapChain(ComPtr<IDXGIFactory4>      f
     ComPtr<IDXGISwapChain3> swapChain;
     tmp->QueryInterface<IDXGISwapChain3>(&swapChain);
     return swapChain;
+}
+
+void DX12Sample::CreateObjects()
+{
+    auto cube = _sceneManager->CreateCube();
+    SpecularMaterial& specular = std::get<SpecularMaterial>(cube->GetMaterial().GetParams());
+    specular.reflectance = 350.0f;
+    specular.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
+    cube->Position({2.0, 0.0, 0.0});
+
+    auto emptyCube = _sceneManager->CreateEmptyCube();
+    DiffuseMaterial& diffuse   = std::get<DiffuseMaterial>(emptyCube->GetMaterial().GetParams());
+    diffuse.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
+    emptyCube->Rotation(0.5f);
 }

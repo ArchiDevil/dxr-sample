@@ -21,9 +21,9 @@
     - [x] Create something like objects manager
     - [x] Start using local root signatures and bindings
     - [ ] Implement simplest materials system (to use different hit shaders)
-    - [ ] Implement possibility to create objects externally out of SceneManager
-        - [ ] Scene manager must provide interface to create objects
-        - [ ] Scene manager must provide interface to pass a custom geometry
+    - [X] Implement possibility to create objects externally out of SceneManager
+        - [X] Scene manager must provide interface to create objects
+        - [X] Scene manager must provide interface to pass a custom geometry
     - [ ] Generate a geometry of an island using Perlin noise
         - [ ] Generate cubes for a noise data
         - [ ] Generate geometry using a marching triangles algorithm

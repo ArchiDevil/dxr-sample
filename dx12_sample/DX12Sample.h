@@ -35,6 +35,8 @@ private:
 
     void DumpFeatures();
 
+    void CreateObjects();
+
     std::shared_ptr<DeviceResources> _deviceResources = nullptr;
 
     std::unique_ptr<SceneManager>        _sceneManager = nullptr;

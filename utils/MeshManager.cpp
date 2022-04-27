@@ -4,8 +4,6 @@
 
 #include "Types.h"
 
-#include <shaders/Common.h>
-
 static const std::vector<GeometryVertex> vertices =
 {
     // back face +Z
@@ -209,4 +207,22 @@ std::shared_ptr<MeshObject> MeshManager::CreateScreenQuad()
                                                _device, false);
 
     return _screenQuad;
+}
+
+std::shared_ptr<MeshObject> MeshManager::CreateCustomObject(const std::vector<GeometryVertex>& vertices,
+                                                            const std::vector<uint32_t>&       indices,
+                                                            std::function<void(CommandList&)>  cmdListExecutor)
+{
+    _customObjects.emplace_back(
+        std::make_shared<MeshObject>(
+            std::vector<uint8_t>{(uint8_t*)vertices.data(), (uint8_t*)(vertices.data() + vertices.size())},
+            sizeof(GeometryVertex),
+            indices,
+            _device,
+            true,
+            cmdListExecutor
+            )
+    );
+
+    return _customObjects.back();
 }
