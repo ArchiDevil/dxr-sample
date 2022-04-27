@@ -458,8 +458,8 @@ std::shared_ptr<SceneObject> SceneManager::CreateCube()
 
 std::shared_ptr<SceneObject> SceneManager::CreateAxis()
 {
-    const float                              axisW    = 0.12f;
-    const float                              axisL    = 1.5f;
+    const float                              axisW    = 0.04f;
+    const float                              axisL    = 4.0f;
     static const std::vector<GeometryVertex> vertices = {
         //x/z
         {{0.0f, axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
@@ -476,15 +476,14 @@ std::shared_ptr<SceneObject> SceneManager::CreateAxis()
     };
 
     static const std::vector<uint32_t> indices = {// x - axis
-                                                  0, 1, 2, 0,2,1,
-
+                                                  0, 1, 2, 0, 2, 1,
                                                   // y
                                                   3, 4, 5, 5, 4, 3,
                                                   // z
                                                   0, 6, 1, 1, 6, 0,
                                                   };
 
-    return CreateCustomObject(vertices, indices, Material{MaterialType::Diffuse});
+    return CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
 }
 
 std::shared_ptr<SceneObject> SceneManager::CreateCustomObject(const std::vector<GeometryVertex>& vertices,
