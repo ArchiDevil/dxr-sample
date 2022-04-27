@@ -36,6 +36,7 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
 
     _mainCamera.SetCenter({0.0f, 0.0f, 0.0f});
     _mainCamera.SetRadius(5.0f);
+    _mainCamera.SetInclination(20.0f);
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
 

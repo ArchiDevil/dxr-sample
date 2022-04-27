@@ -10,6 +10,14 @@ enum class ProjectionType
     Orthographic
 };
 
+struct CameraPosition
+{
+    XMFLOAT3 centerPosition = {0.0f, 0.0f, 0.0f};
+    float    radius         = 10.0f;
+    float    rotation       = 0.0f;
+    float    inclination    = 0.0f;
+};
+
 class SphericalCamera
 {
 public:
@@ -28,6 +36,8 @@ public:
     XMFLOAT4 GetEyePosition() const;
     XMFLOAT4 GetEyeDirection() const;
 
+    CameraPosition GetCameraPosition() const;
+
 private:
     void UpdateMatrices();
 
@@ -38,12 +48,8 @@ private:
     float           _aspectRatio = 16.0f / 9.0f;
     float           _screenWidth = 1024.0f;
     float           _screenHeight = 600.0f;
-    XMFLOAT3        _centerPosition = {0.0f, 0.0f, 0.0f};
-    float           _radius = 10.0f;
-    float           _inclination = 0.0f;
-    float           _rotation = 0.0f;
     XMMATRIX        _viewMatrix = XMMatrixIdentity();
     XMMATRIX        _projectionMatrix = XMMatrixIdentity();
-
+    CameraPosition  _cameraPosition;
 };
 }

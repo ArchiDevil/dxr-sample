@@ -8,6 +8,15 @@
 
 #include <utils/SceneObject.h>
 
+struct MouseSceneTracker
+{
+    bool                     lBtnPressed = false;
+    bool                     rBtnPressed = false;
+    POINT                    pressedPoint{0, 0};
+    POINT                    currPoint{0, 0};
+    Graphics::CameraPosition camPosition;
+};
+
 class DX12Sample : public DXSample
 {
 public:
@@ -51,4 +60,6 @@ private:
     ComPtr<ID3D12DescriptorHeap> _uiDescriptors = nullptr;
     std::unique_ptr<CommandList> _uiCmdList;
     std::array<float, 30>        _frameTimes = {};
+
+    MouseSceneTracker _mouseSceneTracker;
 };

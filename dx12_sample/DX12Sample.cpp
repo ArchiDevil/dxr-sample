@@ -96,11 +96,22 @@ void DX12Sample::OnUpdate()
         elapsedTime -= 1.0;
     }
 
-    static double time = 0;
-    time += dt;
+    if (!_mouseSceneTracker.lBtnPressed)
+    {
+        _sceneManager->GetCamera().SetRotation(_sceneManager->GetCamera().GetCameraPosition().rotation + dt * 10.0f );
+        return;
+    }
 
-    _sceneManager->GetCamera().SetInclination(20.0f);
-    _sceneManager->GetCamera().SetRotation(time * 10.0f);
+    float dx = _mouseSceneTracker.camPosition.rotation + _mouseSceneTracker.pressedPoint.x - _mouseSceneTracker.currPoint.x;
+    float dy = _mouseSceneTracker.camPosition.inclination - _mouseSceneTracker.pressedPoint.y + _mouseSceneTracker.currPoint.y;
+
+    if (dy >= 89.0f)
+        dy = 89.0f;
+    else if (dy <= -89.0f)
+        dy = -89.0f;
+
+    _sceneManager->GetCamera().SetInclination(dy);
+    _sceneManager->GetCamera().SetRotation(dx);
 }
 
 void DX12Sample::OnRender()
@@ -187,11 +198,27 @@ bool DX12Sample::OnEvent(MSG msg)
             exit(0);
         break;
     case WM_LBUTTONDOWN:
+        _mouseSceneTracker.lBtnPressed  = true;
+        _mouseSceneTracker.pressedPoint = msg.pt;
+        _mouseSceneTracker.currPoint    = msg.pt;
+        _mouseSceneTracker.camPosition  = _sceneManager->GetCamera().GetCameraPosition();
+
         ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
         break;
     case WM_LBUTTONUP:
+        _mouseSceneTracker.lBtnPressed = false;
         ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
         break;
+    case WM_MOUSEMOVE:
+        if (_mouseSceneTracker.lBtnPressed)
+            _mouseSceneTracker.currPoint = msg.pt;
+        break;
+    case WM_MOUSEWHEEL: {
+        auto& camera = _sceneManager->GetCamera();
+        float radius = camera.GetCameraPosition().radius;
+        short zDelta = GET_WHEEL_DELTA_WPARAM(msg.wParam);
+        camera.SetRadius(radius * (zDelta > 0 ? 0.9f : 1.1f));
+        } break;
     }
 
     // DXSample does not check return value, so it will be false :)
