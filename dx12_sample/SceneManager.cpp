@@ -35,7 +35,8 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
     assert(rtManager);
 
     _mainCamera.SetCenter({0.0f, 0.0f, 0.0f});
-    _mainCamera.SetRadius(5.0f);
+    _mainCamera.SetRadius(10.0f);
+    _mainCamera.SetRotation(45.0f);
     _mainCamera.SetInclination(20.0f);
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
@@ -501,11 +502,11 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
         const float3&      position3 = vertex3.position;
         DirectX::FXMVECTOR pos3      = DirectX::FXMVECTOR({position3.x, position3.y, position3.z});
 
-        XMVECTOR vector1 = DirectX::XMVectorSubtract(pos1, pos2);
-        XMVECTOR vector2 = DirectX::XMVectorSubtract(pos1, pos3);
+        XMVECTOR vector1 = DirectX::XMVectorSubtract(pos2, pos1);
+        XMVECTOR vector2 = DirectX::XMVectorSubtract(pos3, pos1);
 
-        XMVECTOR          cross = DirectX::XMVector3Cross(vector1, vector2);
-        DirectX::XMVECTOR norm  = DirectX::XMVector3Normalize(cross);
+        XMVECTOR cross         = DirectX::XMVector3Cross(vector1, vector2);
+        DirectX::XMVECTOR norm = DirectX::XMVector3Normalize(cross);
 
         DirectX::XMStoreFloat3(&vertex1.normal, norm);
         DirectX::XMStoreFloat3(&vertex2.normal, norm);
@@ -522,6 +523,13 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
 std::shared_ptr<SceneObject> SceneManager::CreateIsland()
 {
     int      islandSize = 500;
+
+    _worldGen.GetNoise().SetLacunarity(1.5);
+    _worldGen.GetNoise().SetFrequency(1.5);
+   //_worldGen.GetNoise().SetOctaves(12);
+    _worldGen.GetNoise().SetPersistence(0.3);
+    _worldGen.GetNoise().SetSeed(2347743);
+
     _worldGen.GenerateHeightMap(islandSize);
 
     std::vector<GeometryVertex> vertices;
@@ -538,7 +546,7 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
             const float nz       = 0.015f * height;
             const float nx       = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
             const float ny       = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
-            float3      normal   = {0.0f, 1.0f, 0.0f};
+            float3      normal   = {0.0f, 0.0f, 1.0f};
             float3      binormal = {1.0f, 0.0f, 0.0f};
             float3      tangent  = {0.0f, 0.0f, -1.0f};
             vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, binormal, tangent, {0.0f, 0.0f}});

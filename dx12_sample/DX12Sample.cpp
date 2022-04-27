@@ -69,6 +69,8 @@ void DX12Sample::OnInit()
     ImGui_ImplDX12_Init(_deviceResources->GetDevice().Get(), 2, DXGI_FORMAT_R8G8B8A8_UNORM, _uiDescriptors.Get(),
                         _uiDescriptors->GetCPUDescriptorHandleForHeapStart(),
                         _uiDescriptors->GetGPUDescriptorHandleForHeapStart());
+
+    _mouseSceneTracker.camPosition = _sceneManager->GetCamera().GetCameraPosition();
 }
 
 void DX12Sample::OnUpdate()
@@ -132,7 +134,7 @@ void DX12Sample::OnRender()
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         static ImVec4 ambientColor{ 0.1f, 0.1f, 0.1f, 1.0f };
         static ImVec4 lightColor{1.0f, 1.0f, 1.0f, 1.0f};
-        static ImVec4 lightDir{ 0.75f, -1.0f, 0.2f, 1.0f };
+        static ImVec4 lightDir{ 0.0f, -0.154f, -0.148f, 1.0f };
 
         ImVec2 window_pos;
         window_pos.x = viewport->WorkPos.x + padding;

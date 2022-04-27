@@ -35,13 +35,19 @@ void WorldGen::GenerateHeightMap(int size)
 
 int WorldGen::GetHeight(int ChunkX, int ChunkY)
 {
-    if (ChunkX < _worldSize / 2 && ChunkX > -_worldSize / 2 && ChunkY < _worldSize / 2 && ChunkY > -_worldSize / 2)
+    const int div = 1; //2
+    if (ChunkX < _worldSize / div && ChunkX > -_worldSize / div && ChunkY < _worldSize / div && ChunkY > -_worldSize / div)
     {
-        const int offset = 0; //_worldSize / 2
+        const int offset = 0;  //_worldSize / 2
         return _heightMap[ChunkX + offset][ChunkY + offset];
     }
     else
     {
         return 0;
     }
+}
+
+Noise& WorldGen::GetNoise()
+{
+    return noise;
 }

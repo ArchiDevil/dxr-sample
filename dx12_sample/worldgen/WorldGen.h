@@ -14,6 +14,8 @@ public:
     void GenerateHeightMap(int size);
     int  GetHeight(int ChunkX, int ChunkY);
 
+    Noise& GetNoise();
+
 private:
     Noise noise;
 
