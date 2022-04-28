@@ -5,6 +5,7 @@
 #include "DXSample.h"
 #include "DeviceResources.h"
 #include "SceneManager.h"
+#include "worldgen/WorldGen.h"
 
 #include <utils/SceneObject.h>
 
@@ -31,6 +32,8 @@ public:
     void HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) override;
 
 private:
+    void UpdateWorldTexture();
+    void CreateUITexture();
     void AdjustSizes();
 
     std::shared_ptr<DeviceResources> CreateDeviceResources();
@@ -60,7 +63,21 @@ private:
 
     ComPtr<ID3D12DescriptorHeap> _uiDescriptors = nullptr;
     std::unique_ptr<CommandList> _uiCmdList;
-    std::array<float, 30>        _frameTimes = {};
+    bool                         _showTerrainControls = false;
+    WorldGen                     _worldGen;
+    ComPtr<ID3D12Resource>       _heightMapTexture;
+    uint64_t                     _heightMapTexId;
+
+    struct WorldGenParams
+    {
+        int   octaves     = 6;
+        float persistance = 0.5;
+        float frequency   = 1.0;
+        float lacunarity  = 2.0;
+    };
+
+    WorldGenParams        _worldGenParams;
+    std::array<float, 30> _frameTimes = {};
 
     MouseSceneTracker _mouseSceneTracker;
 };
