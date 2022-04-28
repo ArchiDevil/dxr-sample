@@ -1,36 +1,98 @@
 #include "WorldGen.h"
 
-double length(double x, double y)
+Noise& WorldGen::GetNoise()
 {
-    return sqrt(pow(x - 1.0, 2.0) + pow(y - 1.0, 2.0));
+    return _noise;
 }
 
-void WorldGen::GenerateHeightMap(int size, float density)
+double Length(double x, double y)
 {
-    int    mapSize = size;
-    double r       = 0.0;
-    //noise.SetOctaves(8);
+    x -= 1.0;
+    y -= 1.0;
+    return sqrt(x * x + y * y);
+}
 
-    for (double i = 0.0; i < 2.0; i += 1.0 / mapSize)
+constexpr std::size_t GetIndex(std::size_t x, std::size_t y, std::size_t sideSize)
+{
+    return x * sideSize + y;
+}
+
+constexpr double GetAmplitude(int octaves, double persistance)
+{
+    double result    = 0.0;
+
+    double amplitude = 1.0;
+    for (auto octave = 0; octave < octaves; ++octave)
     {
-        for (double j = 0.0; j < 2.0; j += 1.0 / mapSize)
+        result += amplitude;
+        amplitude *= persistance;
+    }
+
+    return result;
+}
+
+WorldGen::WorldGen(std::size_t sideSize)
+    : _sideSize(sideSize)
+{
+    _heightMap.resize(sideSize * sideSize);
+}
+
+void WorldGen::GenerateHeightMap(int octaves, double persistance, double frequency, double lacunarity)
+{
+    _noise.SetOctaves(octaves);
+    _noise.SetPersistence(persistance);
+    _noise.SetFrequency(frequency);
+    _noise.SetLacunarity(lacunarity);
+
+    const double amplitude = GetAmplitude(octaves, persistance);
+
+    for (double i = 0.0; i < 2.0; i += 1.0 / _sideSize)
+    {
+        for (double j = 0.0; j < 2.0; j += 1.0 / _sideSize)
         {
-            double value = noise.SimplexNoise(i, j);
+            double value = _noise.SimplexNoise(i, j);
 
-            value += 1.0;
-            value /= 2.0;
+            value += amplitude;
+            value /= amplitude * 2.0;
 
-            double length2 = length(i, j) > 1.0 ? 1.0 : length(i, j) * length(i, j);
+            double length2 = Length(i, j) > 1.0 ? 1.0 : Length(i, j) * Length(i, j);
             double curMult = 0.05 + 0.95 * length2;
             value *= (1 - curMult * curMult);
 
-            int cellX = (int)(i * mapSize / 2);
-            int cellY = (int)(j * mapSize / 2);
+            std::size_t cellX = (std::size_t)(i * _sideSize / 2);
+            std::size_t cellY = (std::size_t)(j * _sideSize / 2);
 
-            _heightMap[cellX][cellY] = value * density;
+            _heightMap[GetIndex(cellX, cellY, _sideSize)] = 20 + value * 125.0;
         }
     }
 }
+
+// void WorldGen::GenerateHeightMap(int size, float density)
+//{
+//    int    mapSize = size;
+//    double r       = 0.0;
+//    //noise.SetOctaves(8);
+//
+//    for (double i = 0.0; i < 2.0; i += 1.0 / mapSize)
+//    {
+//        for (double j = 0.0; j < 2.0; j += 1.0 / mapSize)
+//        {
+//            double value = noise.SimplexNoise(i, j);
+//
+//            value += 1.0;
+//            value /= 2.0;
+//
+//            double length2 = length(i, j) > 1.0 ? 1.0 : length(i, j) * length(i, j);
+//            double curMult = 0.05 + 0.95 * length2;
+//            value *= (1 - curMult * curMult);
+//
+//            int cellX = (int)(i * mapSize / 2);
+//            int cellY = (int)(j * mapSize / 2);
+//
+//            _heightMap[cellX][cellY] = value * density;
+//        }
+//    }
+//}
 
 void WorldGen::GenerateHeightMap2(int size, float density)
 {
@@ -51,27 +113,19 @@ void WorldGen::GenerateHeightMap2(int size, float density)
         {
             const float x = static_cast<float>(col - size / 2 + offset_x * scale);
 
-            const float   noise = simplex.fractal(octaves, x, y) + offset_z;
-            _heightMap[col][row] = noise * density;
+            const float noise = simplex.fractal(octaves, x, y) + offset_z;
+
+            _heightMap[GetIndex(col, row, _sideSize)] = 20 + noise * density;
         }
     }
 }
 
-int WorldGen::GetHeight(int ChunkX, int ChunkY)
+uint8_t WorldGen::GetHeight(std::size_t x, std::size_t y)
 {
-    const int div = 1; //2
-    if (ChunkX < _worldSize / div && ChunkX > -_worldSize / div && ChunkY < _worldSize / div && ChunkY > -_worldSize / div)
-    {
-        const int offset = 0;  //_worldSize / 2
-        return _heightMap[ChunkX + offset][ChunkY + offset];
-    }
-    else
-    {
-        return 0;
-    }
+    return _heightMap[GetIndex(x, y, _sideSize)];
 }
 
-Noise& WorldGen::GetNoise()
+std::size_t WorldGen::GetSideSize() const
 {
-    return noise;
+    return _sideSize;
 }

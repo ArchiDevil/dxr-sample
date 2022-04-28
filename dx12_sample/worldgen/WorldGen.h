@@ -10,19 +10,21 @@
 class WorldGen
 {
 public:
-    WorldGen() = default;
+    WorldGen(std::size_t sideSize);
 
-    void GenerateHeightMap(int size, float density = 100000.0);
-    void GenerateHeightMap2(int size, float density = 100000.0);
-    int  GetHeight(int ChunkX, int ChunkY);
+    void        GenerateHeightMap(int octaves, double persistance, double frequency, double lacunarity);
+    void        GenerateHeightMap2(int size, float density = 125.0f);
+    uint8_t     GetHeight(std::size_t x, std::size_t y);
+    std::size_t GetSideSize() const;
 
     Noise& GetNoise();
 
 private:
-    Noise noise;
-    SimplexNoise noise2;
+    Noise       _noise;
+    std::size_t _sideSize;
 
+    SimplexNoise _noise2;
 
-    static const int _worldSize = 1024;
-    int              _heightMap[_worldSize][_worldSize] = {};
+    static const int     _worldSize = 1024;
+    std::vector<uint8_t> _heightMap;
 };

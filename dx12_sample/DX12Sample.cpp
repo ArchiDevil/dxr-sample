@@ -2,6 +2,7 @@
 
 #include "DX12Sample.h"
 
+#include <utils/CommandList.h>
 #include <utils/FeaturesCollector.h>
 #include <utils/Math.h>
 #include <utils/Shaders.h>
@@ -10,10 +11,13 @@
 #include <backends/imgui_impl_dx12.h>
 #include <backends/imgui_impl_win32.h>
 
+constexpr std::size_t mapSize = Math::AlignTo(1024, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+
 using namespace std::chrono;
 
 DX12Sample::DX12Sample(int windowWidth, int windowHeight, std::set<optTypes>& opts)
     : DXSample(windowWidth, windowHeight, L"HELLO YOPTA")
+    , _worldGen(mapSize)
 {
 }
 
@@ -53,6 +57,11 @@ void DX12Sample::OnInit()
     imguiHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     imguiHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(_deviceResources->GetDevice()->CreateDescriptorHeap(&imguiHeapDesc, IID_PPV_ARGS(&_uiDescriptors)));
+
+    CreateUITexture();
+    _worldGen.GenerateHeightMap(_worldGenParams.octaves, _worldGenParams.persistance, _worldGenParams.frequency,
+                                _worldGenParams.lacunarity);
+    UpdateWorldTexture();
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -157,9 +166,40 @@ void DX12Sample::OnRender()
         ImGui::SliderFloat3("Light direction", (float*)&lightDir, -1.0f, 1.0f);
         ImGui::End();
 
+        if (ImGui::BeginMainMenuBar())
+        {
+            if (ImGui::BeginMenu("Debug"))
+            {
+                if(ImGui::MenuItem("Show terrain controls", nullptr, _showTerrainControls))
+                {
+                    _showTerrainControls = !_showTerrainControls;
+                }
+                ImGui::EndMenu();
+            }
+            
+            ImGui::EndMainMenuBar();
+        }
+
         _sceneManager->SetAmbientColor(ambientColor.x, ambientColor.y, ambientColor.z);
         _sceneManager->SetLightColor(lightColor.x, lightColor.y, lightColor.z);
         _sceneManager->SetLightDirection(lightDir.x, lightDir.y, lightDir.z);
+
+        if (_showTerrainControls)
+        {
+            ImGui::Begin("Terrain controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+            ImGui::Image((ImTextureID)_heightMapTexId, {256, 256}, {0, 0}, {1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1});
+            ImGui::SliderInt("Octaves", &_worldGenParams.octaves, 1, 10);
+            ImGui::SliderFloat("Persistance", &_worldGenParams.persistance, 0.1f, 1.0f);
+            ImGui::SliderFloat("Frequency", &_worldGenParams.frequency, 0.1f, 10.0f);
+            ImGui::SliderFloat("Lacunarity", &_worldGenParams.lacunarity, 0.1f, 10.0f);
+            if (ImGui::Button("Generate terrain"))
+            {
+                _worldGen.GenerateHeightMap(_worldGenParams.octaves, _worldGenParams.persistance,
+                                            _worldGenParams.frequency, _worldGenParams.lacunarity);
+                UpdateWorldTexture();
+            }
+            ImGui::End();
+        }
     }
 
     // Rendering
@@ -251,6 +291,128 @@ void DX12Sample::DumpFeatures()
 {
     FeaturesCollector collector {_deviceResources->GetDevice()};
     collector.CollectFeatures("deviceInfo.log");
+}
+
+void DX12Sample::UpdateWorldTexture()
+{
+    const std::size_t pixelSize = 4;
+
+    // create upload buffer
+    D3D12_RESOURCE_DESC uploadDesc = {};
+    uploadDesc.Dimension           = D3D12_RESOURCE_DIMENSION_BUFFER;
+    uploadDesc.Format              = DXGI_FORMAT_UNKNOWN;
+    uploadDesc.Flags               = D3D12_RESOURCE_FLAG_NONE;
+    uploadDesc.SampleDesc.Count    = 1;
+    uploadDesc.DepthOrArraySize    = 1;
+    uploadDesc.MipLevels           = 1;
+    uploadDesc.Width               = pixelSize * mapSize * mapSize;  // 1 byte per all 4 channels, 1024x1024 pixels
+    uploadDesc.Height              = 1;
+    uploadDesc.Alignment           = 0;
+    uploadDesc.Layout              = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    D3D12_HEAP_PROPERTIES  uploadHeapProps = {D3D12_HEAP_TYPE_UPLOAD};
+    ComPtr<ID3D12Resource> uploadTexture;
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateCommittedResource(&uploadHeapProps, D3D12_HEAP_FLAG_NONE,
+                                                                         &uploadDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+                                                                         nullptr, IID_PPV_ARGS(&uploadTexture)));
+
+    std::map<uint8_t, XMUINT3> colorsLut = {
+        {40, XMUINT3{63, 72, 204}},     // deep water
+        {50, XMUINT3{0, 162, 232}},     // shallow water
+        {55, XMUINT3{255, 242, 0}},     // sand
+        {80, XMUINT3{181, 230, 29}},    // grass
+        {95, XMUINT3{34, 177, 76}},     // forest
+        {105, XMUINT3{127, 127, 127}},  // rock
+        {255, XMUINT3{255, 255, 255}}   // snow
+    };
+
+    uint8_t* data = nullptr;
+    ThrowIfFailed(uploadTexture->Map(0, nullptr, (void**)&data));
+    for (int i = 0; i < mapSize; ++i)
+    {
+        for (int j = 0; j < mapSize; ++j)
+        {
+            uint8_t     height       = _worldGen.GetHeight(i, j);
+            std::size_t rowOffset    = j * pixelSize * mapSize;
+            std::size_t columnOffset = i * pixelSize;
+            std::size_t pixelOffset  = rowOffset + columnOffset;
+
+            auto color            = colorsLut.lower_bound(height)->second;
+            data[pixelOffset + 0] = color.x;
+            data[pixelOffset + 1] = color.y;
+            data[pixelOffset + 2] = color.z;
+            data[pixelOffset + 3] = 255;  // 1.0 to alpha channel
+        }
+    }
+    uploadTexture->Unmap(0, nullptr);
+
+    D3D12_RESOURCE_BARRIER barrier = {};
+    barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Transition.pResource   = _heightMapTexture.Get();
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_DEST;
+    barrier.Transition.Subresource = 0;
+
+    // copy it to the normal GPU texture
+    CommandList                 cmdList{CommandListType::Direct, _deviceResources->GetDevice()};
+    D3D12_TEXTURE_COPY_LOCATION dstLoc = {};
+    dstLoc.Type                        = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dstLoc.SubresourceIndex            = 0;
+    dstLoc.pResource                   = _heightMapTexture.Get();
+
+    D3D12_TEXTURE_COPY_LOCATION srcLoc        = {};
+    srcLoc.Type                               = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    srcLoc.PlacedFootprint.Offset             = 0;
+    srcLoc.PlacedFootprint.Footprint.Depth    = 1;
+    srcLoc.PlacedFootprint.Footprint.Format   = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srcLoc.PlacedFootprint.Footprint.Height   = mapSize;
+    srcLoc.PlacedFootprint.Footprint.RowPitch = mapSize * pixelSize;
+    srcLoc.PlacedFootprint.Footprint.Width    = mapSize;
+    srcLoc.pResource                          = uploadTexture.Get();
+
+    cmdList.GetInternal()->CopyTextureRegion(&dstLoc, 0, 0, 0, &srcLoc, nullptr);
+
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+    cmdList.GetInternal()->ResourceBarrier(1, &barrier);
+    cmdList.Close();
+    _sceneManager->ExecuteCommandList(cmdList);
+}
+
+void DX12Sample::CreateUITexture()
+{
+    D3D12_RESOURCE_DESC heightMapDesc = {};
+    heightMapDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    heightMapDesc.Format              = DXGI_FORMAT_R8G8B8A8_UNORM;
+    heightMapDesc.Flags               = D3D12_RESOURCE_FLAG_NONE;
+    heightMapDesc.SampleDesc.Count    = 1;
+    heightMapDesc.DepthOrArraySize    = 1;
+    heightMapDesc.MipLevels           = 1;
+    heightMapDesc.Width               = mapSize;
+    heightMapDesc.Height              = mapSize;
+    heightMapDesc.Alignment           = 0;
+
+    D3D12_HEAP_PROPERTIES defaultHeapProps = {D3D12_HEAP_TYPE_DEFAULT};
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateCommittedResource(
+        &defaultHeapProps, D3D12_HEAP_FLAG_NONE, &heightMapDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
+        IID_PPV_ARGS(&_heightMapTexture)));
+
+    // create SRV and put it into ImGUI heap
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Format                          = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Texture2D.MipLevels             = 1;
+
+    auto incSize = _deviceResources->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    auto handle = _uiDescriptors->GetCPUDescriptorHandleForHeapStart();
+    handle.ptr += incSize;
+    _deviceResources->GetDevice()->CreateShaderResourceView(_heightMapTexture.Get(), &srvDesc, handle);
+
+    auto gpu_handle = _uiDescriptors->GetGPUDescriptorHandleForHeapStart();
+    gpu_handle.ptr += incSize;
+    _heightMapTexId = gpu_handle.ptr;
 }
 
 void DX12Sample::AdjustSizes()

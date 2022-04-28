@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "DX12Sample.h"
 
+#include <backends/imgui_impl_win32.h>
+
 #include <shellapi.h>
 #include <iostream>
 
@@ -11,6 +13,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #endif
 {
     HINSTANCE localInstance = GetModuleHandle(0);
+
+    ImGui_ImplWin32_EnableDpiAwareness();
 
 #ifndef _DEBUG
     int argc = 0;
