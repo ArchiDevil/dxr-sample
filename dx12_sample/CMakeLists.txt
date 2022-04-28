@@ -13,6 +13,8 @@ set(SRC
     worldgen/Noise.h
     worldgen/WorldGen.cpp
     worldgen/WorldGen.h
+    worldgen/SimplexNoise.cpp
+    worldgen/SimplexNoise.h
 )
 
 add_executable(dxr_sample ${SRC})

@@ -5,12 +5,12 @@ double length(double x, double y)
     return sqrt(pow(x - 1.0, 2.0) + pow(y - 1.0, 2.0));
 }
 
-void WorldGen::GenerateHeightMap(int size)
+void WorldGen::GenerateHeightMap(int size, float density)
 {
     int    mapSize = size;
     double r       = 0.0;
     noise.SetOctaves(8);
-    noise.SetFrequency(1.0 + r / 10.0);
+    //noise.SetFrequency(1.0 + r / 10.0);
 
     for (double i = 0.0; i < 2.0; i += 1.0 / mapSize)
     {
@@ -28,7 +28,32 @@ void WorldGen::GenerateHeightMap(int size)
             int cellX = (int)(i * mapSize / 2);
             int cellY = (int)(j * mapSize / 2);
 
-            _heightMap[cellX][cellY] = value * 100.0;
+            _heightMap[cellX][cellY] = value * density;
+        }
+    }
+}
+
+void WorldGen::GenerateHeightMap2(int size, float density)
+{
+    float scale       = 279.f;
+    float offset_x    = 5.022f;
+    float offset_y    = 4.22f;
+    float offset_z    = 0.05f;
+    float lacunarity  = 1.5f;
+    float persistance = 0.5f;
+
+    const SimplexNoise simplex(1.1f / scale, 15.5f, lacunarity, persistance);  // Amplitude of 0.5 for the 1st octave : sum ~1.0f
+    const int octaves = static_cast<int>(5 + std::log(scale));  // Estimate number of octaves needed for the current scale
+
+    for (int row = 0; row <= size; ++row)
+    {
+        const float y = static_cast<float>(row - size / 2 + offset_y * scale);
+        for (int col = 0; col <= size; ++col)
+        {
+            const float x = static_cast<float>(col - size / 2 + offset_x * scale);
+
+            const float   noise = simplex.fractal(octaves, x, y) + offset_z;
+            _heightMap[col][row] = noise * density;
         }
     }
 }

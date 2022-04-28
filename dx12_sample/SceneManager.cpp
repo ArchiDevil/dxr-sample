@@ -505,9 +505,17 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
         XMVECTOR vector1 = DirectX::XMVectorSubtract(pos2, pos1);
         XMVECTOR vector2 = DirectX::XMVectorSubtract(pos3, pos1);
 
+
         XMVECTOR cross         = DirectX::XMVector3Cross(vector1, vector2);
         DirectX::XMVECTOR norm = DirectX::XMVector3Normalize(cross);
 
+        //XMVECTOR norm1  = DirectX::XMLoadFloat3(&vertex1.normal);
+        //if (!DirectX::XMVector3Equal(norm, norm1) &&
+        //    !DirectX::XMVector3Equal(DirectX::XMVector3Length(norm1), DirectX::XMVectorZero()))
+        //{
+        //    norm = DirectX::XMVectorAdd(norm1, norm);
+        //    norm = DirectX::XMVector3Normalize(norm);
+        //}
         DirectX::XMStoreFloat3(&vertex1.normal, norm);
         DirectX::XMStoreFloat3(&vertex2.normal, norm);
         DirectX::XMStoreFloat3(&vertex3.normal, norm);
@@ -516,49 +524,61 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
     if (vertices.size() > index + islandSize + 2)
     {
         calcNorm(index, index + 1, index + islandSize + 1);
-        calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
+        //calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
     }
 }
 
 std::shared_ptr<SceneObject> SceneManager::CreateIsland()
 {
-    int      islandSize = 500;
+    int      islandSize = 1000;
 
-    _worldGen.GetNoise().SetLacunarity(1.5);
-    _worldGen.GetNoise().SetFrequency(1.5);
-   //_worldGen.GetNoise().SetOctaves(12);
-    _worldGen.GetNoise().SetPersistence(0.3);
-    _worldGen.GetNoise().SetSeed(2347743);
+    _worldGen.GetNoise().SetLacunarity(1.3);
+    _worldGen.GetNoise().SetFrequency(0.8);
+    _worldGen.GetNoise().SetPersistence(0.5);
+    //_worldGen.GetNoise().SetSeed(2347743);
 
-    _worldGen.GenerateHeightMap(islandSize);
+    float dens = 1000.0f;
+    _worldGen.GenerateHeightMap(islandSize, dens);
+    //_worldGen.GenerateHeightMap2(islandSize);
 
     std::vector<GeometryVertex> vertices;
     vertices.reserve(islandSize * islandSize);
 
     float islandWidth = 6.0f;
 
-    for (int y = 0; y <= islandSize; ++y)
+    for (int y = 0; y <= islandSize; y++)
     {
-        for (int x = 0; x <= islandSize; ++x)
+        for (int x = 0; x <= islandSize; x++)
         {
             int height = _worldGen.GetHeight(x, y);
 
-            const float nz       = 0.015f * height;
+            const float nz       = height * 1.5f / dens;
             const float nx       = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
             const float ny       = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
-            float3      normal   = {0.0f, 0.0f, 1.0f};
+            float3      normal   = {0.0f, 0.0f, 0.0f};
             float3      binormal = {1.0f, 0.0f, 0.0f};
             float3      tangent  = {0.0f, 0.0f, -1.0f};
             vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, binormal, tangent, {0.0f, 0.0f}});
         }
     }
 
+    int                   colCnt = 0;
     std::vector<uint32_t> indices;
-    for (uint32_t i = 0; i < islandSize * islandSize -1; ++i)
+    for (uint32_t i = 0; i <= islandSize * islandSize; ++i)  //(islandSize + 1) * (islandSize) -1
     {
+        GeometryVertex& v1 = vertices[i];
+        GeometryVertex& v2 = vertices[i + 1];
+        GeometryVertex& v3 = vertices[i + islandSize + 1];
+
+        colCnt++;
+        if (colCnt >= islandSize)
+        {
+            colCnt = 0;
+        }
+
         CalculateNormal(vertices, i, islandSize);
         indices.emplace_back(i);
-        indices.emplace_back(i+1);
+        indices.emplace_back(i + 1);
         indices.emplace_back(i + islandSize + 1);
 
         indices.emplace_back(i + islandSize + 2);
