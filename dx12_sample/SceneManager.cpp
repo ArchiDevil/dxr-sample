@@ -618,12 +618,13 @@ std::shared_ptr<SceneObject> SceneManager::CreateIslandCubes()
     float blockWidth         = 1.0f;
     float islandWidth        = blockWidth * islandSizeInBlocks;
 
-    _worldGen.GetNoise().SetLacunarity(1.3);
-    _worldGen.GetNoise().SetFrequency(0.8);
+    _worldGen.GetNoise().SetOctaves(6);
     _worldGen.GetNoise().SetPersistence(0.5);
+    _worldGen.GetNoise().SetFrequency(1.427);
+    _worldGen.GetNoise().SetLacunarity(2.447);
 
-    float dens = 1000.0f;
-    _worldGen.GenerateHeightMap2(islandSizeInBlocks, dens);
+    float dens = 10000.0f;
+    _worldGen.GenerateHeightMap(islandSizeInBlocks, dens);
 
     std::vector<GeometryVertex> vertices;
     vertices.reserve(islandSizeInBlocks * islandSizeInBlocks * 8);

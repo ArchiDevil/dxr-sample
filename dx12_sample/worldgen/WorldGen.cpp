@@ -9,7 +9,7 @@ void WorldGen::GenerateHeightMap(int size, float density)
 {
     int    mapSize = size;
     double r       = 0.0;
-    noise.SetOctaves(8);
+    //noise.SetOctaves(8);
 
     for (double i = 0.0; i < 2.0; i += 1.0 / mapSize)
     {
