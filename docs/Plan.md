@@ -20,7 +20,7 @@
     - [x] Start using multiple objects
     - [x] Create something like objects manager
     - [x] Start using local root signatures and bindings
-    - [ ] Implement simplest materials system (to use different hit shaders)
+    - [x] Implement simplest materials system (to use different hit shaders)
     - [X] Implement possibility to create objects externally out of SceneManager
         - [X] Scene manager must provide interface to create objects
         - [X] Scene manager must provide interface to pass a custom geometry
@@ -54,9 +54,22 @@
 ## Scene description
 
 The main idea is to have an island in a sea:
+
 - A landmass is generated procedurally using a Perlin noise.
 - The geometry is tessellated using either cubes or marching triangles.
 - Water is moving. OPTIONAL
 - There are trees, stones, grass on the island. OPTIONAL
 - There are volumetric clouds and a sun.
 - There are possibility to change day time. OPTIONAL
+
+## Landscape generation
+
+- Landscape consists of vertical columns. Each column has 2 triangles on the top and multiple triangles on sides.
+- Landscape is generated using a height map.
+- Each 'cube' has color:
+    - <50 levels are yellow
+    - Sea level is 50 blocks height
+    - 50-53 levels are yellow (sand)
+    - 53-63 levels are green (grass)
+    - 63-80 levels are grey (rocks)
+    - 80+ levels are white (snow)

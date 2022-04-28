@@ -25,12 +25,11 @@ public:
     using SceneObjectPtr = std::shared_ptr<SceneObject>;
     using SceneObjects   = std::vector<SceneObjectPtr>;
 
-    SceneManager(std::shared_ptr<DeviceResources>           deviceResources,
-                 UINT                                       screenWidth,
-                 UINT                                       screenHeight,
-                 CommandLineOptions                         cmdLineOpts,
-                 RenderTargetManager*                       rtManager,
-                 std::vector<std::shared_ptr<RenderTarget>> swapChainRTs);
+    SceneManager(std::shared_ptr<DeviceResources> deviceResources,
+                 UINT                             screenWidth,
+                 UINT                             screenHeight,
+                 CommandLineOptions               cmdLineOpts,
+                 RenderTargetManager*             rtManager);
     ~SceneManager();
 
     SceneManager(const SceneManager&) = delete;
@@ -57,6 +56,8 @@ public:
     std::shared_ptr<SceneObject> CreateCustomObject(const std::vector<GeometryVertex>& vertices,
                                                     const std::vector<uint32_t>&       indices,
                                                     Material                           material);
+
+    void UpdateWindowSize(UINT screenWidth, UINT screenHeight);
 
 private:
     void CreateCommandLists();
@@ -100,8 +101,8 @@ private:
     ComPtr<ID3D12Resource> _raytracingOutput = nullptr;
 
     // renderer resources
-    std::size_t _dispatchUavIdx = 0;
-    std::size_t _tlasIdx        = 0;
+    std::size_t _dispatchUavIdx = ~0ULL;
+    std::size_t _tlasIdx        = ~0ULL;
 
     // frame resources
     ComPtr<ID3D12Resource> _viewParams  = nullptr;
@@ -109,14 +110,13 @@ private:
     ComPtr<ID3D12Resource> _tlas        = nullptr;
 
     // other objects
-    UINT                                       _screenWidth  = 0;
-    UINT                                       _screenHeight = 0;
-    std::vector<std::shared_ptr<RenderTarget>> _swapChainRTs;
-    RenderTargetManager*                       _rtManager = nullptr;
-    std::shared_ptr<RenderTarget>              _HDRRt     = nullptr;
-    Graphics::SphericalCamera                  _mainCamera;
-    MeshManager                                _meshManager;
-    SceneObjects                               _sceneObjects;
+    UINT                          _screenWidth  = 0;
+    UINT                          _screenHeight = 0;
+    RenderTargetManager*          _rtManager    = nullptr;
+    std::shared_ptr<RenderTarget> _HDRRt        = nullptr;
+    Graphics::SphericalCamera     _mainCamera;
+    MeshManager                   _meshManager;
+    SceneObjects                   _sceneObjects;
 
     WorldGen _worldGen;
 

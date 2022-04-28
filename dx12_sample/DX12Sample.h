@@ -28,8 +28,11 @@ public:
     void OnRender() override;
     void OnDestroy() override;
     bool OnEvent(MSG msg) override;
+    void HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) override;
 
 private:
+    void AdjustSizes();
+
     std::shared_ptr<DeviceResources> CreateDeviceResources();
 
     ComPtr<IDXGIFactory4>      CreateDXGIFactory();
@@ -46,16 +49,14 @@ private:
 
     void CreateObjects();
 
-    std::shared_ptr<DeviceResources> _deviceResources = nullptr;
-
-    std::unique_ptr<SceneManager>        _sceneManager = nullptr;
-    std::unique_ptr<RenderTargetManager> _RTManager    = nullptr;
-
-    CommandLineOptions                         _cmdLineOpts{};
-    std::vector<std::shared_ptr<RenderTarget>> _swapChainRTs;
+    std::shared_ptr<DeviceResources>     _deviceResources = nullptr;
+    std::unique_ptr<SceneManager>        _sceneManager    = nullptr;
+    std::unique_ptr<RenderTargetManager> _RTManager       = nullptr;
+    CommandLineOptions                   _cmdLineOpts{};
 
     // Main sample parameters
     static constexpr size_t _swapChainBuffersCount = 2;
+    bool                    _isResizing            = false;
 
     ComPtr<ID3D12DescriptorHeap> _uiDescriptors = nullptr;
     std::unique_ptr<CommandList> _uiCmdList;

@@ -41,10 +41,10 @@ void DX12Sample::OnInit()
     _uiCmdList->Close();
 
     _RTManager    = std::make_unique<RenderTargetManager>(_deviceResources->GetDevice());
-    _swapChainRTs = _RTManager->CreateRenderTargetsForSwapChain(_deviceResources->GetSwapChain());
+    auto swapChainRts = _RTManager->CreateRenderTargetsForSwapChain(_deviceResources->GetSwapChain());
+    _deviceResources->SetSwapChainRts(swapChainRts);
 
-    _sceneManager =
-        std::make_unique<SceneManager>(_deviceResources, m_width, m_height, _cmdLineOpts, _RTManager.get(), _swapChainRTs);
+    _sceneManager = std::make_unique<SceneManager>(_deviceResources, m_width, m_height, _cmdLineOpts, _RTManager.get());
 
     CreateObjects();
 
@@ -166,7 +166,7 @@ void DX12Sample::OnRender()
     ImGui::Render();
 
     UINT backBufferIdx = _deviceResources->GetSwapChain()->GetCurrentBackBufferIndex();
-    RenderTarget* rts[8] = {_swapChainRTs[backBufferIdx].get()};
+    RenderTarget* rts[8] = {_deviceResources->GetSwapChainRts()[backBufferIdx].get()};
 
     _uiCmdList->Reset();
     _RTManager->BindRenderTargets(rts, nullptr, *_uiCmdList);
@@ -176,7 +176,7 @@ void DX12Sample::OnRender()
     D3D12_RESOURCE_BARRIER barrier = {};
     barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Flags                  = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource   = _swapChainRTs[backBufferIdx]->_texture.Get();
+    barrier.Transition.pResource   = _deviceResources->GetSwapChainRts()[backBufferIdx]->_texture.Get();
     barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PRESENT;
@@ -227,10 +227,50 @@ bool DX12Sample::OnEvent(MSG msg)
     return false;
 }
 
+void DX12Sample::HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_MOVE:
+        // do not adjust size when user drags the window border
+        // this will only trigger on maximization/restoring events
+        if (!_isResizing)
+            AdjustSizes();
+        break;
+    case WM_ENTERSIZEMOVE:
+        _isResizing = true;
+        break;
+    case WM_EXITSIZEMOVE:
+        _isResizing = false;
+        AdjustSizes();
+        break;
+    }
+}
+
 void DX12Sample::DumpFeatures()
 {
     FeaturesCollector collector {_deviceResources->GetDevice()};
     collector.CollectFeatures("deviceInfo.log");
+}
+
+void DX12Sample::AdjustSizes()
+{
+    WINDOWINFO windowInfo = {};
+    GetWindowInfo(m_hwnd, &windowInfo);
+    LONG width = windowInfo.rcClient.right - windowInfo.rcClient.left;
+    LONG height = windowInfo.rcClient.bottom - windowInfo.rcClient.top;
+
+    if (m_width == width && m_height == height)
+        return;
+
+    m_width = width;
+    m_height = height;
+    // update window size
+    _deviceResources->ClearSwapChainRts();
+    ThrowIfFailed(_deviceResources->GetSwapChain()->ResizeBuffers(0, m_width, m_height, DXGI_FORMAT_UNKNOWN, NULL));
+    auto swapChainRts = _RTManager->CreateRenderTargetsForSwapChain(_deviceResources->GetSwapChain());
+    _deviceResources->SetSwapChainRts(swapChainRts);
+    _sceneManager->UpdateWindowSize(m_width, m_height);
 }
 
 std::shared_ptr<DeviceResources> DX12Sample::CreateDeviceResources()

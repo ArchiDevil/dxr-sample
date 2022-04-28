@@ -1,4 +1,4 @@
-//*********************************************************
+﻿//*********************************************************
 //
 // Copyright (c) Microsoft. All rights reserved.
 // This code is licensed under the MIT License (MIT).
@@ -13,19 +13,18 @@
 #include "DXSample.h"
 #include <shellapi.h>
 
+#include <functional>
+#include <map>
+
+std::map<HWND, std::function<void(HWND, UINT, WPARAM, LPARAM)>> globalHandlers;
+
 DXSample::DXSample(UINT width, UINT height, std::wstring name) :
 	m_width(width),
-	m_height(height),
-	m_useWarpDevice(false)
+	m_height(height)
 {
-	ParseCommandLineArgs();
-
-	m_title = name + (m_useWarpDevice ? L" (WARP)" : L"");
+	m_title = name;
 
 	WCHAR assetsPath[512];
-	GetAssetsPath(assetsPath, _countof(assetsPath));
-	m_assetsPath = assetsPath;
-
 	m_aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 }
 
@@ -62,6 +61,10 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 		hInstance,
 		NULL);		// We aren't using multiple windows, NULL.
 
+	globalHandlers[m_hwnd] = [this](HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam){
+		this->HandleWindowMessage(hwnd, message, wParam, lParam);
+	};
+
 	ShowWindow(m_hwnd, nCmdShow);
 
 	// Initialize the sample. OnInit is defined in each child-implementation of DXSample.
@@ -72,7 +75,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	while (true)
 	{
 		// Process any messages in the queue.
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
@@ -92,12 +95,6 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 
 	// Return this part of the WM_QUIT message to Windows.
 	return static_cast<char>(msg.wParam);
-}
-
-// Helper function for resolving the full path of assets.
-std::wstring DXSample::GetAssetFullPath(LPCWSTR assetName)
-{
-	return m_assetsPath + assetName;
 }
 
 // Returns bool whether the device supports DirectX Raytracing tier.
@@ -146,22 +143,6 @@ void DXSample::SetCustomWindowText(LPCWSTR text)
 	SetWindowText(m_hwnd, windowText.c_str());
 }
 
-// Helper function for parsing any supplied command line args.
-void DXSample::ParseCommandLineArgs()
-{
-	int argc;
-	LPWSTR *argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-	for (int i = 1; i < argc; ++i)
-	{
-		if (_wcsnicmp(argv[i], L"-warp", wcslen(argv[i])) == 0 || 
-			_wcsnicmp(argv[i], L"/warp", wcslen(argv[i])) == 0)
-		{
-			m_useWarpDevice = true;
-		}
-	}
-	LocalFree(argv);
-}
-
 // Main message handler for the sample.
 LRESULT CALLBACK DXSample::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -172,6 +153,9 @@ LRESULT CALLBACK DXSample::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LP
 		PostQuitMessage(0);
 		return 0;
 	}
+
+	if (auto iter = globalHandlers.find(hWnd); iter != globalHandlers.end())
+		iter->second(hWnd, message, wParam, lParam);
 
 	// Handle any messages the switch statement didn't.
 	return DefWindowProc(hWnd, message, wParam, lParam);

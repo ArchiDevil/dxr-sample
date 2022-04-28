@@ -54,6 +54,14 @@ void SphericalCamera::SetProjectionType(ProjectionType type)
     UpdateMatrices();
 }
 
+void SphericalCamera::SetScreenParams(float screenWidth, float screenHeight)
+{
+    _screenWidth = screenWidth;
+    _screenHeight = screenHeight;
+    _aspectRatio = _screenWidth / _screenHeight;
+    UpdateMatrices();
+}
+
 DirectX::XMMATRIX SphericalCamera::GetViewMatrix() const
 {
     return _viewMatrix;
