@@ -20,7 +20,7 @@
     - [x] Start using multiple objects
     - [x] Create something like objects manager
     - [x] Start using local root signatures and bindings
-    - [ ] Implement simplest materials system (to use different hit shaders)
+    - [x] Implement simplest materials system (to use different hit shaders)
     - [X] Implement possibility to create objects externally out of SceneManager
         - [X] Scene manager must provide interface to create objects
         - [X] Scene manager must provide interface to pass a custom geometry
@@ -54,6 +54,7 @@
 ## Scene description
 
 The main idea is to have an island in a sea:
+
 - A landmass is generated procedurally using a Perlin noise.
 - The geometry is tessellated using either cubes or marching triangles.
 - Water is moving. OPTIONAL

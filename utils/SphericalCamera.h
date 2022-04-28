@@ -29,12 +29,12 @@ public:
     void SetInclination(float inclination);
     void SetRotation(float rotation);
     void SetProjectionType(ProjectionType type);
+    void SetScreenParams(float screenWidth, float screenHeight);
 
     XMMATRIX GetViewMatrix() const;
     XMMATRIX GetProjMatrix() const;
     XMMATRIX GetViewProjMatrix() const;
     XMFLOAT4 GetEyePosition() const;
-    XMFLOAT4 GetEyeDirection() const;
 
     CameraPosition GetCameraPosition() const;
 

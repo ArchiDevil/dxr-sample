@@ -28,8 +28,8 @@ protected:
 	virtual void OnRender() = 0;
 	virtual void OnDestroy() = 0;
 	virtual bool OnEvent(MSG msg) = 0;
+	virtual void HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) = 0;
 
-	std::wstring GetAssetFullPath(LPCWSTR assetName);
 	void GetHardwareAdapter(_In_ IDXGIFactory4* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter);
 
 	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -42,15 +42,7 @@ protected:
 	// Window handle.
 	HWND m_hwnd;
 
-	// Adapter info.
-	bool m_useWarpDevice;
-
 private:
-	void ParseCommandLineArgs();
-
-	// Root assets path.
-	std::wstring m_assetsPath;
-
 	// Window title.
 	std::wstring m_title;
 };

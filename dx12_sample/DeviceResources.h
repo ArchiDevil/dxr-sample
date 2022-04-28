@@ -2,6 +2,8 @@
 
 #include "stdafx.h"
 
+#include <utils/RenderTargetManager.h>
+
 class DeviceResources
 {
 public:
@@ -54,11 +56,27 @@ public:
         }
     }
 
+    void SetSwapChainRts(std::vector<std::shared_ptr<RenderTarget>> swapChainRts)
+    {
+        _swapChainRTs = swapChainRts;
+    }
+
+    auto& GetSwapChainRts() const
+    {
+        return _swapChainRTs;
+    }
+
+    void ClearSwapChainRts()
+    {
+        _swapChainRTs.clear();
+    }
+
 private:
-    ComPtr<ID3D12Device5>      _device;
-    ComPtr<IDXGIFactory4>      _factory;
-    ComPtr<IDXGISwapChain3>    _swapChain;
-    ComPtr<ID3D12CommandQueue> _cmdQueue;
+    ComPtr<ID3D12Device5>                      _device;
+    ComPtr<IDXGIFactory4>                      _factory;
+    ComPtr<IDXGISwapChain3>                    _swapChain;
+    ComPtr<ID3D12CommandQueue>                 _cmdQueue;
+    std::vector<std::shared_ptr<RenderTarget>> _swapChainRTs;
 
     // sync primitives
     HANDLE              _frameEndEvent = nullptr;

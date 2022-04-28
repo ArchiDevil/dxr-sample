@@ -12,17 +12,13 @@
 
 constexpr auto pi = 3.14159265f;
 
-SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceResources,
-                           UINT                                       screenWidth,
-                           UINT                                       screenHeight,
-                           CommandLineOptions                         cmdLineOpts,
-                           RenderTargetManager*                       rtManager,
-                           std::vector<std::shared_ptr<RenderTarget>> swapChainRTs)
+SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
+                           UINT                             screenWidth,
+                           UINT                             screenHeight,
+                           CommandLineOptions               cmdLineOpts,
+                           RenderTargetManager*             rtManager)
     : _deviceResources(deviceResources)
-    , _screenWidth(screenWidth)
-    , _screenHeight(screenHeight)
     , _rtManager(rtManager)
-    , _swapChainRTs(swapChainRTs)
     , _mainCamera(Graphics::ProjectionType::Perspective,
                   0.1f,
                   1000.f,
@@ -41,7 +37,7 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources>           deviceReso
     SetThreadDescription(GetCurrentThread(), L"Main thread");
 
     CreateFrameResources();
-    CreateRenderTargets();
+    UpdateWindowSize(screenWidth, screenHeight);
     CreateRootSignatures();
     CreateRaytracingPSO();
     CreateCommandLists();
@@ -107,6 +103,18 @@ void SceneManager::SetAmbientColor(float r, float g, float b)
     _ambientColor[2] = b;
 }
 
+void SceneManager::UpdateWindowSize(UINT screenWidth, UINT screenHeight)
+{
+    if (_screenHeight == screenHeight && _screenWidth == screenWidth)
+        return;
+
+    _screenWidth  = screenWidth;
+    _screenHeight = screenHeight;
+
+    CreateRenderTargets();
+    _mainCamera.SetScreenParams((float)_screenWidth, (float)_screenHeight);
+}
+
 void SceneManager::CreateRenderTargets()
 {
     D3D12_RESOURCE_DESC dxrOutputDesc = {};
@@ -126,8 +134,17 @@ void SceneManager::CreateRenderTargets()
         &dxrOutputDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
         IID_PPV_ARGS(&_raytracingOutput)));
 
-    auto heapHandle = _descriptorHeap.GetFreeCPUAddress();
-    _dispatchUavIdx = heapHandle.index;
+    FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = {};
+    if (_dispatchUavIdx == ~0ULL)
+    {
+        heapHandle = _descriptorHeap.GetFreeCPUAddress();
+        _dispatchUavIdx = heapHandle.index;
+    }
+    else
+    {
+        heapHandle.index = _dispatchUavIdx;
+        heapHandle.handle = _descriptorHeap.GetCPUAddress(_dispatchUavIdx);
+    }
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -219,16 +236,16 @@ void SceneManager::PopulateCommandList()
 
     size_t frameIndex = _deviceResources->GetSwapChain()->GetCurrentBackBufferIndex();
     {
-        auto transition = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        auto transition = CD3DX12_RESOURCE_BARRIER::Transition(_deviceResources->GetSwapChainRts()[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
         _cmdList->GetInternal()->ResourceBarrier(1, &transition);
     }
 
-    auto rtBuffer = _swapChainRTs[frameIndex].get();
+    auto rtBuffer = _deviceResources->GetSwapChainRts()[frameIndex].get();
     _rtManager->ClearRenderTarget(*rtBuffer, *_cmdList);
 
     {
         std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
-        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
+        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_deviceResources->GetSwapChainRts()[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
         transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
         _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
     }
@@ -238,7 +255,7 @@ void SceneManager::PopulateCommandList()
     // Indicate that the back buffer will be used as a render target.
     {
         std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
-        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_swapChainRTs[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_deviceResources->GetSwapChainRts()[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
         transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
     }
@@ -570,7 +587,7 @@ void SceneManager::BuildTLAS()
     ExecuteCommandList(cmdList);
 
     D3D12_CPU_DESCRIPTOR_HANDLE heapHandle;
-    if (!_tlasIdx)
+    if (_tlasIdx == ~0ULL)
     {
         auto address = _descriptorHeap.GetFreeCPUAddress();
         _tlasIdx = address.index;
