@@ -528,6 +528,106 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
     }
 }
 
+void GenerateCube(float3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices)
+{
+    uint32_t beg_vertex = vertices.size();
+
+    const float offset = 0.5f;
+
+    const float x = topPoint.x + offset;
+    const float y = topPoint.y + offset;
+    const float z = topPoint.z + offset;
+
+    const float bottom = -50.0f;
+
+    const std::vector<GeometryVertex> vertices1 = {
+        // back face +Z
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{x + -0.5f,y +  0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{x + -0.5f,y +  -0.5f,z +  0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+
+        // front face -Z
+        {{x + 0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{x + 0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{x + -0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{x + -0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+
+        // bottom face -Y
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
+        {{x + 0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+        {{x + -0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+
+        // top face +Y
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
+        {{x + 0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+        {{x + -0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+
+        // left face -X
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{x + -0.5f, y + -0.5f, z + -0.5f + bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{x + -0.5f, y + 0.5f, z + -0.5f + bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+
+        // right face +X
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{x + 0.5f, y + -0.5f, z + -0.5f + bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{x + 0.5f, y + 0.5f, z + -0.5f + bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+    };
+    vertices.insert(vertices.end(), vertices1.begin(), vertices1.end());
+
+    std::vector<uint32_t> indices2 = {
+        // back
+        beg_vertex + 0, beg_vertex + 2, beg_vertex + 1, beg_vertex + 1, beg_vertex + 2, beg_vertex + 3,
+        // front +4
+        beg_vertex + 4, beg_vertex + 5, beg_vertex + 7, beg_vertex + 4, beg_vertex + 7, beg_vertex + 6,
+        // left +8
+        beg_vertex + 9, beg_vertex + 8, beg_vertex + 10, beg_vertex + 10, beg_vertex + 8, beg_vertex + 11,
+        // right +12
+        beg_vertex + 13, beg_vertex + 14, beg_vertex + 12, beg_vertex + 14, beg_vertex + 15, beg_vertex + 12,
+        // front +16
+        beg_vertex + 17, beg_vertex + 16, beg_vertex + 19, beg_vertex + 18, beg_vertex + 17, beg_vertex + 19,
+        // back +20
+        beg_vertex + 21, beg_vertex + 23, beg_vertex + 20, beg_vertex + 22, beg_vertex + 23, beg_vertex + 21};
+    indices.insert(indices.end(), indices2.begin(), indices2.end());
+}
+
+std::shared_ptr<SceneObject> SceneManager::CreateIslandCubes()
+{
+    int   islandSizeInBlocks = 500;
+    float blockWidth         = 1.0f;
+    float islandWidth        = blockWidth * islandSizeInBlocks;
+
+    _worldGen.GetNoise().SetLacunarity(1.3);
+    _worldGen.GetNoise().SetFrequency(0.8);
+    _worldGen.GetNoise().SetPersistence(0.5);
+
+    float dens = 1000.0f;
+    _worldGen.GenerateHeightMap2(islandSizeInBlocks, dens);
+
+    std::vector<GeometryVertex> vertices;
+    vertices.reserve(islandSizeInBlocks * islandSizeInBlocks * 8);
+    std::vector<uint32_t> indices;
+
+    for (int y = 0; y < islandSizeInBlocks; y++)
+    {
+        for (int x = 0; x < islandSizeInBlocks; x++)
+        {
+            int height = _worldGen.GetHeight(x, y) * 50.0f;
+
+            const float nz = height * 1.5f / dens;
+            const float nx = -islandWidth / 2 + islandWidth * ((float)x / islandSizeInBlocks);
+            const float ny = -islandWidth / 2 + islandWidth * ((float)y / islandSizeInBlocks);
+            GenerateCube({nx, ny, nz}, vertices, indices);
+        }
+    }
+
+    return CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
+}
+
 std::shared_ptr<SceneObject> SceneManager::CreateIsland()
 {
     int      islandSize = 1000;
@@ -538,13 +638,13 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
     //_worldGen.GetNoise().SetSeed(2347743);
 
     float dens = 1000.0f;
-    _worldGen.GenerateHeightMap(islandSize, dens);
-    //_worldGen.GenerateHeightMap2(islandSize);
+    //_worldGen.GenerateHeightMap(islandSize, dens);
+    _worldGen.GenerateHeightMap2(islandSize, dens);
 
     std::vector<GeometryVertex> vertices;
     vertices.reserve(islandSize * islandSize);
 
-    float islandWidth = 6.0f;
+    float islandWidth = 10.0f;
 
     for (int y = 0; y <= islandSize; y++)
     {
@@ -564,16 +664,13 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
 
     int                   colCnt = 0;
     std::vector<uint32_t> indices;
-    for (uint32_t i = 0; i <= islandSize * islandSize; ++i)  //(islandSize + 1) * (islandSize) -1
+    for (uint32_t i = 0; i < islandSize * (islandSize - 1); ++i)
     {
-        GeometryVertex& v1 = vertices[i];
-        GeometryVertex& v2 = vertices[i + 1];
-        GeometryVertex& v3 = vertices[i + islandSize + 1];
-
         colCnt++;
-        if (colCnt >= islandSize)
+        if (colCnt > islandSize)
         {
             colCnt = 0;
+            continue;
         }
 
         CalculateNormal(vertices, i, islandSize);

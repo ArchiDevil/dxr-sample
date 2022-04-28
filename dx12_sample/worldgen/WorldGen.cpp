@@ -10,7 +10,6 @@ void WorldGen::GenerateHeightMap(int size, float density)
     int    mapSize = size;
     double r       = 0.0;
     noise.SetOctaves(8);
-    //noise.SetFrequency(1.0 + r / 10.0);
 
     for (double i = 0.0; i < 2.0; i += 1.0 / mapSize)
     {
@@ -35,14 +34,14 @@ void WorldGen::GenerateHeightMap(int size, float density)
 
 void WorldGen::GenerateHeightMap2(int size, float density)
 {
-    float scale       = 279.f;
+    float scale       = 500.f;
     float offset_x    = 5.022f;
     float offset_y    = 4.22f;
     float offset_z    = 0.05f;
     float lacunarity  = 1.5f;
     float persistance = 0.5f;
 
-    const SimplexNoise simplex(1.1f / scale, 15.5f, lacunarity, persistance);  // Amplitude of 0.5 for the 1st octave : sum ~1.0f
+    const SimplexNoise simplex(1.1f / scale, 1.0f, lacunarity, persistance);
     const int octaves = static_cast<int>(5 + std::log(scale));  // Estimate number of octaves needed for the current scale
 
     for (int row = 0; row <= size; ++row)
