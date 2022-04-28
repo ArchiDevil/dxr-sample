@@ -40,7 +40,7 @@ void RayGenShader()
     uint3 launchIndex = DispatchRaysIndex();
     RayDesc desc;
     desc.TMin = 0.01f;
-    desc.TMax = 1000.0f;
+    desc.TMax = 3000.0f;
     GenerateCameraRay(launchIndex.xy, desc.Origin, desc.Direction);
 
     TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, desc, payload);

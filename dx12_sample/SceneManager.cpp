@@ -21,7 +21,7 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     , _rtManager(rtManager)
     , _mainCamera(Graphics::ProjectionType::Perspective,
                   0.1f,
-                  1000.f,
+                  5000.f,
                   5.0f * pi / 18.0f,
                   static_cast<float>(screenWidth),
                   static_cast<float>(screenHeight))
@@ -555,7 +555,7 @@ void GenerateCube(float3 topPoint, std::vector<GeometryVertex>& vertices, std::v
     const float y = topPoint.y + offset;
     const float z = topPoint.z + offset;
 
-    const float bottom = -50.0f;
+    const float bottom = -55.0f;
 
     const std::vector<GeometryVertex> vertices1 = {
         // back face +Z
@@ -565,34 +565,34 @@ void GenerateCube(float3 topPoint, std::vector<GeometryVertex>& vertices, std::v
         {{x + -0.5f,y +  -0.5f,z +  0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
 
         // front face -Z
-        {{x + 0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{x + 0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{x + -0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{x + -0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
 
         // bottom face -Y
         {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
         {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
-        {{x + 0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
-        {{x + -0.5f, y + -0.5f, z + -0.5f + bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
 
         // top face +Y
         {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
         {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
-        {{x + 0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
-        {{x + -0.5f, y + 0.5f, z + -0.5f + bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
 
         // left face -X
         {{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
         {{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{x + -0.5f, y + -0.5f, z + -0.5f + bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
-        {{x + -0.5f, y + 0.5f, z + -0.5f + bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{x + -0.5f, y + -0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{x + -0.5f, y + 0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
 
         // right face +X
         {{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
         {{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
-        {{x + 0.5f, y + -0.5f, z + -0.5f + bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{x + 0.5f, y + 0.5f, z + -0.5f + bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{x + 0.5f, y + -0.5f, bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+        {{x + 0.5f, y + 0.5f, bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
     };
     vertices.insert(vertices.end(), vertices1.begin(), vertices1.end());
 
@@ -614,7 +614,7 @@ void GenerateCube(float3 topPoint, std::vector<GeometryVertex>& vertices, std::v
 
 std::shared_ptr<SceneObject> SceneManager::CreateIslandCubes()
 {
-    int   islandSizeInBlocks = 500;
+    int   islandSizeInBlocks = 1023;
     float blockWidth         = 1.0f;
     float islandWidth        = blockWidth * islandSizeInBlocks;
 
