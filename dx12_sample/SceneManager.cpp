@@ -614,17 +614,13 @@ void GenerateCube(float3 topPoint, std::vector<GeometryVertex>& vertices, std::v
 
 std::shared_ptr<SceneObject> SceneManager::CreateIslandCubes()
 {
-    int   islandSizeInBlocks = 1023;
-    float blockWidth         = 1.0f;
-    float islandWidth        = blockWidth * islandSizeInBlocks;
-
-    _worldGen.GetNoise().SetOctaves(6);
-    _worldGen.GetNoise().SetPersistence(0.5);
-    _worldGen.GetNoise().SetFrequency(1.427);
-    _worldGen.GetNoise().SetLacunarity(2.447);
+    std::size_t islandSizeInBlocks = _worldGen.GetSideSize();
+    float       blockWidth         = 1.0f;
+    float       islandWidth        = blockWidth * islandSizeInBlocks;
 
     float dens = 125.0f;
-    _worldGen.GenerateHeightMap(6, 0.5, 1.4, 2.4);
+    _worldGen.GenerateHeightMap(6, 0.5, 1.4, 1.9);
+    //_worldGen.GenerateHeightMap2();
 
     std::vector<GeometryVertex> vertices;
     vertices.reserve(islandSizeInBlocks * islandSizeInBlocks * 8);
@@ -634,9 +630,9 @@ std::shared_ptr<SceneObject> SceneManager::CreateIslandCubes()
     {
         for (int x = 0; x < islandSizeInBlocks; x++)
         {
-            int height = _worldGen.GetHeight(x, y) * 50.0f;
+            int height = _worldGen.GetHeight(x, y);
 
-            const float nz = height * 1.5f / dens;
+            const float nz = height;
             const float nx = -islandWidth / 2 + islandWidth * ((float)x / islandSizeInBlocks);
             const float ny = -islandWidth / 2 + islandWidth * ((float)y / islandSizeInBlocks);
             GenerateCube({nx, ny, nz}, vertices, indices);
@@ -648,21 +644,16 @@ std::shared_ptr<SceneObject> SceneManager::CreateIslandCubes()
 
 std::shared_ptr<SceneObject> SceneManager::CreateIsland()
 {
-    int      islandSize = 1000;
+    int islandSize = _worldGen.GetSideSize() -1 ;
 
-    _worldGen.GetNoise().SetLacunarity(1.3);
-    _worldGen.GetNoise().SetFrequency(0.8);
-    _worldGen.GetNoise().SetPersistence(0.5);
-    //_worldGen.GetNoise().SetSeed(2347743);
-
-    float dens = 1000.0f;
-    //_worldGen.GenerateHeightMap(islandSize, dens);
-    _worldGen.GenerateHeightMap2(islandSize, dens);
+    float multi = 300.0f;
+    _worldGen.GenerateHeightMap(6, 0.5, 1.4, 1.4, 0.05, multi);
+    //_worldGen.GenerateHeightMap2();
 
     std::vector<GeometryVertex> vertices;
     vertices.reserve(islandSize * islandSize);
 
-    float islandWidth = 10.0f;
+    float islandWidth = 6.0f;
 
     for (int y = 0; y <= islandSize; y++)
     {
@@ -670,7 +661,7 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
         {
             int height = _worldGen.GetHeight(x, y);
 
-            const float nz       = height * 1.5f / dens;
+            const float nz       = height * 1.0f / multi;
             const float nx       = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
             const float ny       = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
             float3      normal   = {0.0f, 0.0f, 0.0f};

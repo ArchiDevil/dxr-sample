@@ -118,7 +118,7 @@ private:
     MeshManager                   _meshManager;
     SceneObjects                   _sceneObjects;
 
-    WorldGen _worldGen{500};
+    WorldGen _worldGen{1024};
 
     float _lightColors[3];
     float _lightDir[3];
