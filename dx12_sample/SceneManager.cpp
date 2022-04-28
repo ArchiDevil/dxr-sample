@@ -478,19 +478,20 @@ std::shared_ptr<SceneObject> SceneManager::CreateAxis()
 {
     const float                              axisW    = 0.04f;
     const float                              axisL    = 4.0f;
+    float3                                   color    = {0.2f, 0.2f, 0.2f};
     static const std::vector<GeometryVertex> vertices = {
         //x/z
-        {{0.0f, axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
-        {{0.0f, -axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
-        {{axisL, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+        {{0.0f, axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
+        {{0.0f, -axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
+        {{axisL, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
 
         //y
-        {{axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
-        {{-axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
-        {{0.0f, axisL, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+        {{axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
+        {{-axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
+        {{0.0f, axisL, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
 
         //z
-        {{0.0f, 0.0f, axisL}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}}
+        {{0.0f, 0.0f, axisL}, {0.0f, 1.0f, 0.0f}, color}
     };
 
     static const std::vector<uint32_t> indices = {// x - axis
@@ -557,42 +558,55 @@ void GenerateCube(float3 topPoint, std::vector<GeometryVertex>& vertices, std::v
 
     const float bottom = -55.0f;
 
+   const std::map<uint8_t, XMFLOAT3> colorsLut = {
+        {40, XMFLOAT3{63, 72, 204}},    // deep water
+        {50, XMFLOAT3{0, 162, 232}},    // shallow water
+        {55, XMFLOAT3{255, 242, 0}},    // sand
+        {80, XMFLOAT3{181, 230, 29}},   // grass
+        {95, XMFLOAT3{34, 177, 76}},    // forest
+        {105, XMFLOAT3{127, 127, 127}},  // rock
+        {255, XMFLOAT3{255, 255, 255}}   // snow
+    };
+    auto colorX = colorsLut.lower_bound(z)->second;
+
+    float3 color = {colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f};
+
     const std::vector<GeometryVertex> vertices1 = {
         // back face +Z
-        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{x + -0.5f,y +  0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{x + -0.5f,y +  -0.5f,z +  0.5f}, {0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
 
         // front face -Z
-        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
 
         // bottom face -Y
-        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
-        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
-        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
-        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
+        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
 
         // top face +Y
-        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}},
-        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}},
-        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}},
-        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}},
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
+        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
+        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
 
         // left face -X
-        {{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
-        {{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{x + -0.5f, y + -0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
-        {{x + -0.5f, y + 0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
+        {{x + -0.5f, y + -0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
+        {{x + -0.5f, y + 0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
 
         // right face +X
-        {{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
-        {{x + 0.5f, y + -0.5f, bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-        {{x + 0.5f, y + 0.5f, bottom}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}},
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
+        {{x + 0.5f, y + 0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
     };
     vertices.insert(vertices.end(), vertices1.begin(), vertices1.end());
 
@@ -665,9 +679,8 @@ std::shared_ptr<SceneObject> SceneManager::CreateIsland()
             const float nx       = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
             const float ny       = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
             float3      normal   = {0.0f, 0.0f, 0.0f};
-            float3      binormal = {1.0f, 0.0f, 0.0f};
-            float3      tangent  = {0.0f, 0.0f, -1.0f};
-            vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, binormal, tangent, {0.0f, 0.0f}});
+            float3      color    = {0.5f, 0.5f, 0.5f};
+            vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, color});
         }
     }
 

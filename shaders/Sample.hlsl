@@ -91,9 +91,7 @@ GeometryVertex LoadAndInterpolate(uint3 indices, in BuiltInTriangleIntersectionA
     GeometryVertex output;
     output.position = Interpolate(v1.position, v2.position, v3.position, barycentrics);
     output.normal = Interpolate(v1.normal, v2.normal, v3.normal, barycentrics);
-    output.binormal = Interpolate(v1.binormal, v2.binormal, v3.binormal, barycentrics);
-    output.tangent = Interpolate(v1.tangent, v2.tangent, v3.tangent, barycentrics);
-    output.uv = Interpolate(v1.uv, v2.uv, v3.uv, barycentrics);
+    output.color = v1.color;
     return output;
 }
 
@@ -110,7 +108,7 @@ void SpecularShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionA
     float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
     float3 l = -normalize(lightParams.direction.xyz);
     float NoL = dot(n, l);
-    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, modelParams.color.xyz);
+    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, v.color);
 
     float3 currentPos = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
     float3 r = reflect(normalize(currentPos - sceneParams.viewPos.xyz), n);
