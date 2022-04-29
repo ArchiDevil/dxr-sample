@@ -20,7 +20,6 @@ set(SRC
     RootSignature.h
     SceneObject.cpp
     SceneObject.h
-    Shaders.h
     ShaderTable.cpp
     ShaderTable.h
     SphericalCamera.cpp

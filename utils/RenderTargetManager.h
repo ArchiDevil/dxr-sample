@@ -3,6 +3,7 @@
 #include "stdafx.h"
 
 #include "CommandList.h"
+#include "DescriptorHeap.h"
 
 struct RenderTarget
 {
@@ -75,11 +76,8 @@ public:
                            CommandList & cmdList);
 
 private:
-    ComPtr<ID3D12DescriptorHeap>    _rtvDescriptorHeap = nullptr;
-    ComPtr<ID3D12DescriptorHeap>    _dsvDescriptorHeap = nullptr;
-    ComPtr<ID3D12Device>            _device = nullptr;
-
-    std::unordered_map<uint64_t, D3D12_CPU_DESCRIPTOR_HANDLE> _rtvDescriptors;
-    std::unordered_map<uint64_t, D3D12_CPU_DESCRIPTOR_HANDLE> _dsvDescriptors;
+    DescriptorHeap       _rtvHeap;
+    DescriptorHeap       _dsvHeap;
+    ComPtr<ID3D12Device> _device = nullptr;
 
 };

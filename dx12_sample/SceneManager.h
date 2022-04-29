@@ -58,9 +58,6 @@ public:
     void UpdateWindowSize(UINT screenWidth, UINT screenHeight);
 
 private:
-    void CreateCommandLists();
-    void CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState);
-    void CreateUAVBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState);
     void CreateRaytracingPSO();
     void CreateRootSignatures();
     void CreateRenderTargets();
@@ -76,11 +73,15 @@ private:
     void                         UpdateObjects();
     void                         CheckObjectsState();
 
+    // helper methods
+    void CreateConstantBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState);
+    void CreateUAVBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pOutBuffer, D3D12_RESOURCE_STATES initialState);
+
     // context objects
     std::shared_ptr<DeviceResources> _deviceResources;
 
     // command-lists
-    std::unique_ptr<CommandList> _cmdList = nullptr;
+    CommandList _cmdList;
 
     // pipeline states for every object
     ComPtr<ID3D12StateObject> _raytracingState = nullptr;

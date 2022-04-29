@@ -36,5 +36,3 @@ set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE
 set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:WINDOWS")
 set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS")
 set_target_properties(dxr_sample PROPERTIES LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS")
-
-add_dependencies(dxr_sample copy_assets)

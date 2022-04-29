@@ -112,7 +112,7 @@ MeshObject::MeshObject(const std::vector<uint8_t>&       vertex_data,
         blasDesc.DestAccelerationStructureData    = _blas->GetGPUVirtualAddress();
     }
 
-    cmdList.GetInternal()->BuildRaytracingAccelerationStructure(&blasDesc, 0, nullptr);
+    cmdList->BuildRaytracingAccelerationStructure(&blasDesc, 0, nullptr);
     cmdList.Close();
 
     cmdListExecutor(cmdList);
