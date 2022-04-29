@@ -5,7 +5,6 @@
 #include <utils/CommandList.h>
 #include <utils/FeaturesCollector.h>
 #include <utils/Math.h>
-#include <utils/Shaders.h>
 
 #include <imgui.h>
 #include <backends/imgui_impl_dx12.h>
@@ -352,7 +351,7 @@ void DX12Sample::UpdateWorldTexture()
     barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.Subresource = 0;
 
-    cmdList.GetInternal()->ResourceBarrier(1, &barrier);
+    cmdList->ResourceBarrier(1, &barrier);
 
     // copy it to the normal GPU texture
     D3D12_TEXTURE_COPY_LOCATION dstLoc = {};
@@ -370,12 +369,12 @@ void DX12Sample::UpdateWorldTexture()
     srcLoc.PlacedFootprint.Footprint.Width    = mapSize;
     srcLoc.pResource                          = uploadTexture.Get();
 
-    cmdList.GetInternal()->CopyTextureRegion(&dstLoc, 0, 0, 0, &srcLoc, nullptr);
+    cmdList->CopyTextureRegion(&dstLoc, 0, 0, 0, &srcLoc, nullptr);
 
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
-    cmdList.GetInternal()->ResourceBarrier(1, &barrier);
+    cmdList->ResourceBarrier(1, &barrier);
     cmdList.Close();
     _sceneManager->ExecuteCommandList(cmdList);
 }

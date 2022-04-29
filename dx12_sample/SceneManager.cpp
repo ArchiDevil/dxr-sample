@@ -4,7 +4,6 @@
 
 #include <shaders/Common.h>
 #include <utils/RenderTargetManager.h>
-#include <utils/Shaders.h>
 
 #include <filesystem>
 #include <iostream>
@@ -27,8 +26,11 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
                   static_cast<float>(screenHeight))
     , _meshManager(_deviceResources->GetDevice())
     , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128)
+    , _cmdList(CommandListType::Direct, _deviceResources->GetDevice())
 {
     assert(rtManager);
+
+    _cmdList.Close();
 
     _mainCamera.SetCenter({0.0f, 0.0f, 0.0f});
     _mainCamera.SetRadius(5.0f);
@@ -40,7 +42,6 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     UpdateWindowSize(screenWidth, screenHeight);
     CreateRootSignatures();
     CreateRaytracingPSO();
-    CreateCommandLists();
 
     CreateRayGenMissTables();
 }
@@ -58,7 +59,7 @@ void SceneManager::DrawScene()
     cmdListArray.reserve(16); // just to avoid any allocations
     UpdateObjects();
     PopulateCommandList();
-    cmdListArray.push_back(_cmdList->GetInternal().Get());
+    cmdListArray.push_back(_cmdList.GetInternal().Get());
 
     _deviceResources->GetCommandQueue()->ExecuteCommandLists(1, cmdListArray.data());
 }
@@ -222,50 +223,44 @@ void SceneManager::PopulateCommandList()
     desc.HitGroupTable.SizeInBytes   = _hitTable->GetSize();
     desc.HitGroupTable.StrideInBytes = _hitTable->GetStride();
 
-    _cmdList->Reset();
-    _cmdList->GetInternal()->SetPipelineState1(_raytracingState.Get());
+    _cmdList.Reset();
+    _cmdList->SetPipelineState1(_raytracingState.Get());
 
     ID3D12DescriptorHeap* heaps[] = { _descriptorHeap.GetResource().Get()};
-    _cmdList->GetInternal()->SetDescriptorHeaps(1, heaps);
-    _cmdList->GetInternal()->SetComputeRootSignature(_globalRootSignature.GetInternal().Get());
-    _cmdList->GetInternal()->SetComputeRootDescriptorTable(0, _descriptorHeap.GetGPUAddress(_dispatchUavIdx));
-    _cmdList->GetInternal()->SetComputeRootDescriptorTable(1, _descriptorHeap.GetGPUAddress(_tlasIdx));
-    _cmdList->GetInternal()->SetComputeRootConstantBufferView(2, _viewParams->GetGPUVirtualAddress());
-    _cmdList->GetInternal()->SetComputeRootConstantBufferView(3, _lightParams->GetGPUVirtualAddress());
-    _cmdList->GetInternal()->DispatchRays(&desc);
+    _cmdList->SetDescriptorHeaps(1, heaps);
+    _cmdList->SetComputeRootSignature(_globalRootSignature.GetInternal().Get());
+    _cmdList->SetComputeRootDescriptorTable(0, _descriptorHeap.GetGPUAddress(_dispatchUavIdx));
+    _cmdList->SetComputeRootDescriptorTable(1, _descriptorHeap.GetGPUAddress(_tlasIdx));
+    _cmdList->SetComputeRootConstantBufferView(2, _viewParams->GetGPUVirtualAddress());
+    _cmdList->SetComputeRootConstantBufferView(3, _lightParams->GetGPUVirtualAddress());
+    _cmdList->DispatchRays(&desc);
 
     size_t frameIndex = _deviceResources->GetSwapChain()->GetCurrentBackBufferIndex();
     {
         auto transition = CD3DX12_RESOURCE_BARRIER::Transition(_deviceResources->GetSwapChainRts()[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-        _cmdList->GetInternal()->ResourceBarrier(1, &transition);
+        _cmdList->ResourceBarrier(1, &transition);
     }
 
     auto rtBuffer = _deviceResources->GetSwapChainRts()[frameIndex].get();
-    _rtManager->ClearRenderTarget(*rtBuffer, *_cmdList);
+    _rtManager->ClearRenderTarget(*rtBuffer, _cmdList);
 
     {
         std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
         transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_deviceResources->GetSwapChainRts()[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
         transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-        _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
+        _cmdList->ResourceBarrier(transitions.size(), transitions.data());
     }
 
-    _cmdList->GetInternal()->CopyResource(rtBuffer->_texture.Get(), _raytracingOutput.Get());
+    _cmdList->CopyResource(rtBuffer->_texture.Get(), _raytracingOutput.Get());
 
     // Indicate that the back buffer will be used as a render target.
     {
         std::vector< CD3DX12_RESOURCE_BARRIER> transitions(2);
         transitions[0] = CD3DX12_RESOURCE_BARRIER::Transition(_deviceResources->GetSwapChainRts()[frameIndex]->_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_RENDER_TARGET);
         transitions[1] = CD3DX12_RESOURCE_BARRIER::Transition(_raytracingOutput.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        _cmdList->GetInternal()->ResourceBarrier(transitions.size(), transitions.data());
+        _cmdList->ResourceBarrier(transitions.size(), transitions.data());
     }
 
-    _cmdList->Close();
-}
-
-void SceneManager::CreateCommandLists()
-{
-    _cmdList = std::make_unique<CommandList>(CommandListType::Direct, _deviceResources->GetDevice());
     _cmdList->Close();
 }
 
@@ -581,7 +576,7 @@ void SceneManager::BuildTLAS()
         tlasDesc.DestAccelerationStructureData    = _tlas->GetGPUVirtualAddress();
     }
 
-    cmdList.GetInternal()->BuildRaytracingAccelerationStructure(&tlasDesc, 0, nullptr);
+    cmdList->BuildRaytracingAccelerationStructure(&tlasDesc, 0, nullptr);
     cmdList.Close();
 
     ExecuteCommandList(cmdList);

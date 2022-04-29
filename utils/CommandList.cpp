@@ -44,5 +44,5 @@ CommandListType CommandList::GetType() const
 
 ComPtr<ID3D12GraphicsCommandList4> CommandList::GetInternal() const
 {
-    return _commandList.Get();
+    return _commandList;
 }

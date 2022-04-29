@@ -79,7 +79,9 @@ ComPtr<ID3D12DescriptorHeap> DescriptorHeap::CreateHeap(std::size_t size)
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
     heapDesc.NumDescriptors             = static_cast<UINT>(size);
     heapDesc.Type                       = _type;
-    heapDesc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    heapDesc.Flags = _type == D3D12_DESCRIPTOR_HEAP_TYPE_RTV || _type == D3D12_DESCRIPTOR_HEAP_TYPE_DSV
+                         ? D3D12_DESCRIPTOR_HEAP_FLAG_NONE
+                         : D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
     ThrowIfFailed(_device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap)));
     return heap;
