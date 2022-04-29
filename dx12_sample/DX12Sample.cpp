@@ -343,6 +343,8 @@ void DX12Sample::UpdateWorldTexture()
     }
     uploadTexture->Unmap(0, nullptr);
 
+    CommandList cmdList{CommandListType::Direct, _deviceResources->GetDevice()};
+
     D3D12_RESOURCE_BARRIER barrier = {};
     barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Transition.pResource   = _heightMapTexture.Get();
@@ -350,8 +352,9 @@ void DX12Sample::UpdateWorldTexture()
     barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.Subresource = 0;
 
+    cmdList.GetInternal()->ResourceBarrier(1, &barrier);
+
     // copy it to the normal GPU texture
-    CommandList                 cmdList{CommandListType::Direct, _deviceResources->GetDevice()};
     D3D12_TEXTURE_COPY_LOCATION dstLoc = {};
     dstLoc.Type                        = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     dstLoc.SubresourceIndex            = 0;
