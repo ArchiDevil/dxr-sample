@@ -73,19 +73,27 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 
     // Main sample loop.
     MSG msg = { 0 };
+    int returnCode = 0;
     while (true)
     {
         // Process any messages in the queue.
-        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
 
             if (msg.message == WM_QUIT)
+            {
+                returnCode = msg.wParam;
                 break;
+            }
 
             // Pass events into our sample.
-            OnEvent(msg);
+            if (!OnEvent(msg))
+            {
+                returnCode = 0;
+                break;
+            }
         }
 
         OnUpdate();
@@ -95,7 +103,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
     OnDestroy();
 
     // Return this part of the WM_QUIT message to Windows.
-    return static_cast<char>(msg.wParam);
+    return static_cast<char>(returnCode);
 }
 
 // Returns bool whether the device supports DirectX Raytracing tier.
