@@ -229,6 +229,8 @@ void DX12Sample::OnRender()
 
 void DX12Sample::OnDestroy()
 {
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplWin32_Shutdown();
 }
 
 bool DX12Sample::OnEvent(MSG msg)
@@ -237,7 +239,7 @@ bool DX12Sample::OnEvent(MSG msg)
     {
     case WM_KEYDOWN:
         if (msg.wParam == VK_ESCAPE)
-            exit(0);
+            return false;
         break;
     case WM_LBUTTONDOWN:
         _mouseSceneTracker.lBtnPressed  = true;
@@ -263,8 +265,7 @@ bool DX12Sample::OnEvent(MSG msg)
         } break;
     }
 
-    // DXSample does not check return value, so it will be false :)
-    return false;
+    return true;
 }
 
 void DX12Sample::HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)

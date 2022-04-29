@@ -80,6 +80,6 @@ private:
 
     // sync primitives
     HANDLE              _frameEndEvent = nullptr;
-    uint64_t            _fenceValue    = 0;
+    uint64_t            _fenceValue    = 1; // avoid 0 as a default value of ID3D12Fence::GetCompletedValue()
     ComPtr<ID3D12Fence> _frameFence    = nullptr;
 };
