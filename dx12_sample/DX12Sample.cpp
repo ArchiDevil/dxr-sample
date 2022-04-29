@@ -50,7 +50,6 @@ void DX12Sample::OnInit()
 
     _sceneManager = std::make_unique<SceneManager>(_deviceResources, m_width, m_height, _cmdLineOpts, _RTManager.get());
 
-    CreateObjects();
 
     D3D12_DESCRIPTOR_HEAP_DESC imguiHeapDesc = {};
     imguiHeapDesc.NumDescriptors = 32;
@@ -80,6 +79,8 @@ void DX12Sample::OnInit()
                         _uiDescriptors->GetGPUDescriptorHandleForHeapStart());
 
     _mouseSceneTracker.camPosition = _sceneManager->GetCamera().GetCameraPosition();
+
+    CreateObjects();
 }
 
 void DX12Sample::OnUpdate()
@@ -315,16 +316,6 @@ void DX12Sample::UpdateWorldTexture()
                                                                          &uploadDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
                                                                          nullptr, IID_PPV_ARGS(&uploadTexture)));
 
-    std::map<uint8_t, XMUINT3> colorsLut = {
-        {40, XMUINT3{63, 72, 204}},     // deep water
-        {50, XMUINT3{0, 162, 232}},     // shallow water
-        {55, XMUINT3{255, 242, 0}},     // sand
-        {80, XMUINT3{181, 230, 29}},    // grass
-        {95, XMUINT3{34, 177, 76}},     // forest
-        {105, XMUINT3{127, 127, 127}},  // rock
-        {255, XMUINT3{255, 255, 255}}   // snow
-    };
-
     uint8_t* data = nullptr;
     ThrowIfFailed(uploadTexture->Map(0, nullptr, (void**)&data));
     for (int i = 0; i < mapSize; ++i)
@@ -336,7 +327,7 @@ void DX12Sample::UpdateWorldTexture()
             std::size_t columnOffset = i * pixelSize;
             std::size_t pixelOffset  = rowOffset + columnOffset;
 
-            auto color            = colorsLut.lower_bound(height)->second;
+            auto color            = _colorsLut.lower_bound(height)->second;
             data[pixelOffset + 0] = color.x;
             data[pixelOffset + 1] = color.y;
             data[pixelOffset + 2] = color.z;
@@ -520,14 +511,202 @@ void DX12Sample::CreateObjects()
     specular.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
     cube->Position({2.0, 0.0, 0.0});
 
-    auto              island         = _sceneManager->CreateIslandCubes();
-    SpecularMaterial& islandMaterial = std::get<SpecularMaterial>(island->GetMaterial().GetParams());
-    islandMaterial.color             = {0.7f, 0.7f, 0.3f};
-    islandMaterial.reflectance       = 500.0f;
-    island->Position({0.0, 2.0, 0.0});
-
     auto             emptyCube = _sceneManager->CreateEmptyCube();
     DiffuseMaterial& diffuse   = std::get<DiffuseMaterial>(emptyCube->GetMaterial().GetParams());
     diffuse.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
     emptyCube->Rotation(0.5f);
+
+    CreateIslandCubes();
+}
+
+void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int islandSize)
+{
+    auto& calcNorm = [&vertices](uint32_t i1, uint32_t i2, uint32_t i3) {
+        GeometryVertex& vertex1 = vertices[i1];
+        const float3& position = vertex1.position;
+        DirectX::FXMVECTOR pos1 = DirectX::FXMVECTOR({ position.x, position.y, position.z });
+
+        GeometryVertex& vertex2 = vertices[i2];
+        const float3& position2 = vertex2.position;
+        DirectX::FXMVECTOR pos2 = DirectX::FXMVECTOR({ position2.x, position2.y, position2.z });
+
+        GeometryVertex& vertex3 = vertices[i3];
+        const float3& position3 = vertex3.position;
+        DirectX::FXMVECTOR pos3 = DirectX::FXMVECTOR({ position3.x, position3.y, position3.z });
+
+        XMVECTOR vector1 = DirectX::XMVectorSubtract(pos2, pos1);
+        XMVECTOR vector2 = DirectX::XMVectorSubtract(pos3, pos1);
+
+
+        XMVECTOR cross = DirectX::XMVector3Cross(vector1, vector2);
+        DirectX::XMVECTOR norm = DirectX::XMVector3Normalize(cross);
+
+        //XMVECTOR norm1  = DirectX::XMLoadFloat3(&vertex1.normal);
+        //if (!DirectX::XMVector3Equal(norm, norm1) &&
+        //    !DirectX::XMVector3Equal(DirectX::XMVector3Length(norm1), DirectX::XMVectorZero()))
+        //{
+        //    norm = DirectX::XMVectorAdd(norm1, norm);
+        //    norm = DirectX::XMVector3Normalize(norm);
+        //}
+        DirectX::XMStoreFloat3(&vertex1.normal, norm);
+        DirectX::XMStoreFloat3(&vertex2.normal, norm);
+        DirectX::XMStoreFloat3(&vertex3.normal, norm);
+    };
+
+    if (vertices.size() > index + islandSize + 2)
+    {
+        calcNorm(index, index + 1, index + islandSize + 1);
+        //calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
+    }
+}
+
+void DX12Sample::GenerateCube(XMFLOAT3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices)
+{
+    uint32_t beg_vertex = vertices.size();
+
+    const float offset = 0.5f;
+
+    const float x = topPoint.x + offset;
+    const float y = topPoint.y + offset;
+    const float z = topPoint.z + offset;
+
+    const float bottom = -55.0f;
+
+    auto colorX = _colorsLut.lower_bound(z)->second;
+
+    XMFLOAT3 color = { colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f };
+
+    const std::vector<GeometryVertex> vertices1 = {
+        // back face +Z
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+
+        // front face -Z
+        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+
+        // bottom face -Y
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
+        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
+
+        // top face +Y
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
+        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
+        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
+
+        // left face -X
+        {{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
+        {{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
+        {{x + -0.5f, y + -0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
+        {{x + -0.5f, y + 0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
+
+        // right face +X
+        {{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
+        {{x + 0.5f, y + -0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
+        {{x + 0.5f, y + 0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
+    };
+    vertices.insert(vertices.end(), vertices1.begin(), vertices1.end());
+
+    std::vector<uint32_t> indices2 = {
+        // back
+        beg_vertex + 0, beg_vertex + 2, beg_vertex + 1, beg_vertex + 1, beg_vertex + 2, beg_vertex + 3,
+        // front +4
+        beg_vertex + 4, beg_vertex + 5, beg_vertex + 7, beg_vertex + 4, beg_vertex + 7, beg_vertex + 6,
+        // left +8
+        beg_vertex + 9, beg_vertex + 8, beg_vertex + 10, beg_vertex + 10, beg_vertex + 8, beg_vertex + 11,
+        // right +12
+        beg_vertex + 13, beg_vertex + 14, beg_vertex + 12, beg_vertex + 14, beg_vertex + 15, beg_vertex + 12,
+        // front +16
+        beg_vertex + 17, beg_vertex + 16, beg_vertex + 19, beg_vertex + 18, beg_vertex + 17, beg_vertex + 19,
+        // back +20
+        beg_vertex + 21, beg_vertex + 23, beg_vertex + 20, beg_vertex + 22, beg_vertex + 23, beg_vertex + 21 };
+    indices.insert(indices.end(), indices2.begin(), indices2.end());
+}
+
+void DX12Sample::CreateIslandCubes()
+{
+    std::size_t islandSizeInBlocks = _worldGen.GetSideSize();
+    float       blockWidth         = 1.0f;
+    float       islandWidth        = blockWidth * islandSizeInBlocks;
+
+    std::vector<GeometryVertex> vertices;
+    vertices.reserve(islandSizeInBlocks * islandSizeInBlocks * 8);
+    std::vector<uint32_t> indices;
+
+    for (int y = 0; y < islandSizeInBlocks; y++)
+    {
+        for (int x = 0; x < islandSizeInBlocks; x++)
+        {
+            int height = _worldGen.GetHeight(x, y);
+
+            const float nz = height;
+            const float nx = -islandWidth / 2 + islandWidth * ((float)x / islandSizeInBlocks);
+            const float ny = -islandWidth / 2 + islandWidth * ((float)y / islandSizeInBlocks);
+            GenerateCube({nx, ny, nz}, vertices, indices);
+        }
+    }
+
+    auto              obj = _sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
+    SpecularMaterial& mtl = std::get<SpecularMaterial>(obj->GetMaterial().GetParams());
+    mtl.color             = {0.7f, 0.7f, 0.3f};
+    mtl.reflectance       = 500.0f;
+    obj->Position({0.0, 2.0, 0.0});
+}
+
+void DX12Sample::CreateIsland()
+{
+    int islandSize = _worldGen.GetSideSize() - 1;
+
+    float multi = 300.0f;
+
+    std::vector<GeometryVertex> vertices;
+    vertices.reserve(islandSize * islandSize);
+
+    float islandWidth = 6.0f;
+
+    for (int y = 0; y <= islandSize; y++)
+    {
+        for (int x = 0; x <= islandSize; x++)
+        {
+            int height = _worldGen.GetHeight(x, y);
+
+            const float nz     = height * 1.0f / multi;
+            const float nx     = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
+            const float ny     = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
+            float3      normal = {0.0f, 0.0f, 0.0f};
+            float3      color  = {0.5f, 0.5f, 0.5f};
+            vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, color});
+        }
+    }
+
+    int                   colCnt = 0;
+    std::vector<uint32_t> indices;
+    for (uint32_t i = 0; i < islandSize * (islandSize - 1); ++i)
+    {
+        colCnt++;
+        if (colCnt > islandSize)
+        {
+            colCnt = 0;
+            continue;
+        }
+
+        CalculateNormal(vertices, i, islandSize);
+        indices.emplace_back(i);
+        indices.emplace_back(i + 1);
+        indices.emplace_back(i + islandSize + 1);
+
+        indices.emplace_back(i + islandSize + 2);
+        indices.emplace_back(i + islandSize + 1);
+        indices.emplace_back(i + 1);
+    }
+
+    _sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
 }

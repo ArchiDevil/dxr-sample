@@ -36,6 +36,10 @@ private:
     void CreateUITexture();
     void AdjustSizes();
 
+    void CreateIsland();
+    void CreateIslandCubes();
+    void GenerateCube(XMFLOAT3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices);
+
     std::shared_ptr<DeviceResources> CreateDeviceResources();
 
     ComPtr<IDXGIFactory4>      CreateDXGIFactory();
@@ -63,7 +67,9 @@ private:
 
     ComPtr<ID3D12DescriptorHeap> _uiDescriptors = nullptr;
     std::unique_ptr<CommandList> _uiCmdList;
+    std::array<float, 30> _frameTimes = {};
     bool                         _showTerrainControls = false;
+
     WorldGen                     _worldGen;
     ComPtr<ID3D12Resource>       _heightMapTexture;
     uint64_t                     _heightMapTexId;
@@ -76,8 +82,18 @@ private:
         float lacunarity  = 2.0;
     };
 
-    WorldGenParams        _worldGenParams;
-    std::array<float, 30> _frameTimes = {};
+    WorldGenParams             _worldGenParams;
+
+    using ColorsLut = std::map<uint8_t, XMUINT3>;
+    ColorsLut _colorsLut = {
+        {40, XMUINT3{63, 72, 204}},     // deep water
+        {50, XMUINT3{0, 162, 232}},     // shallow water
+        {55, XMUINT3{255, 242, 0}},     // sand
+        {80, XMUINT3{181, 230, 29}},    // grass
+        {95, XMUINT3{34, 177, 76}},     // forest
+        {105, XMUINT3{127, 127, 127}},  // rock
+        {255, XMUINT3{255, 255, 255}}   // snow
+    };
 
     MouseSceneTracker _mouseSceneTracker;
 };

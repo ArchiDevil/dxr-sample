@@ -51,8 +51,6 @@ public:
     std::shared_ptr<SceneObject> CreateEmptyCube();
     std::shared_ptr<SceneObject> CreateCube();
     std::shared_ptr<SceneObject> CreateAxis();
-    std::shared_ptr<SceneObject> CreateIsland();
-    std::shared_ptr<SceneObject> CreateIslandCubes();
     std::shared_ptr<SceneObject> CreateCustomObject(const std::vector<GeometryVertex>& vertices,
                                                     const std::vector<uint32_t>&       indices,
                                                     Material                           material);
@@ -116,9 +114,7 @@ private:
     std::shared_ptr<RenderTarget> _HDRRt        = nullptr;
     Graphics::SphericalCamera     _mainCamera;
     MeshManager                   _meshManager;
-    SceneObjects                   _sceneObjects;
-
-    WorldGen _worldGen{1024};
+    SceneObjects                  _sceneObjects;
 
     float _lightColors[3];
     float _lightDir[3];
