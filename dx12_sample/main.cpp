@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "DX12Sample.h"
 
+#include <utils/DXSampleHelper.h>
+
 #include <backends/imgui_impl_win32.h>
 
 #include <shellapi.h>
@@ -53,9 +55,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         DX12Sample app = {1280, 720, arguments};
         return app.Run(localInstance, SW_SHOW);
     }
-    catch (const std::exception& e)
+    catch (const ComError& e)
     {
-        MessageBoxA(NULL, e.what(), "Exception", NULL);
+        MessageBoxW(NULL, e.Error().c_str(), L"Exception", NULL);
         return 1;
     }
 }

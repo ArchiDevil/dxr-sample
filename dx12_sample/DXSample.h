@@ -16,33 +16,33 @@
 class DXSample
 {
 public:
-	DXSample(UINT width, UINT height, std::wstring name);
-	virtual ~DXSample();
+    DXSample(UINT width, UINT height, std::wstring name);
+    virtual ~DXSample();
 
-	int Run(HINSTANCE hInstance, int nCmdShow);
-	void SetCustomWindowText(LPCWSTR text);
+    int Run(HINSTANCE hInstance, int nCmdShow);
+    void SetCustomWindowText(LPCWSTR text);
 
 protected:
-	virtual void OnInit() = 0;
-	virtual void OnUpdate() = 0;
-	virtual void OnRender() = 0;
-	virtual void OnDestroy() = 0;
-	virtual bool OnEvent(MSG msg) = 0;
-	virtual void HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) = 0;
+    virtual void OnInit() = 0;
+    virtual void OnUpdate() = 0;
+    virtual void OnRender() = 0;
+    virtual void OnDestroy() = 0;
+    virtual bool OnEvent(MSG msg) = 0;
+    virtual void HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) = 0;
 
-	void GetHardwareAdapter(_In_ IDXGIFactory4* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter);
+    void GetHardwareAdapter(_In_ IDXGIFactory4* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter);
 
-	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+    static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-	// Viewport dimensions.
-	UINT m_width;
-	UINT m_height;
-	float m_aspectRatio;
+    // Viewport dimensions.
+    UINT m_width;
+    UINT m_height;
+    float m_aspectRatio;
 
-	// Window handle.
-	HWND m_hwnd;
+    // Window handle.
+    HWND m_hwnd;
 
 private:
-	// Window title.
-	std::wstring m_title;
+    // Window title.
+    std::wstring m_title;
 };
