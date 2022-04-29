@@ -521,6 +521,106 @@ void DX12Sample::CreateObjects()
     CreateIslandCubes();
 }
 
+void DX12Sample::GenerateCube(XMFLOAT3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices)
+{
+    uint32_t beg_vertex = vertices.size();
+
+    const float offset = 0.5f;
+
+    const float x = topPoint.x + offset;
+    const float y = topPoint.y + offset;
+    const float z = topPoint.z + offset;
+
+    const float bottom = -55.0f;
+
+    auto colorX = _colorsLut.lower_bound(z)->second;
+    XMFLOAT3 color = { colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f };
+
+    const std::array vertices1 = {
+        // back face +Z
+        GeometryVertex{{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        GeometryVertex{{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        GeometryVertex{{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+        GeometryVertex{{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
+
+        // front face -Z
+        //GeometryVertex{{x + 0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        //GeometryVertex{{x + 0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        //GeometryVertex{{x + -0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+        //GeometryVertex{{x + -0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
+
+        // bottom face -Y
+        GeometryVertex{{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
+        GeometryVertex{{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
+        GeometryVertex{{x + 0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
+        GeometryVertex{{x + -0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
+
+        // top face +Y
+        GeometryVertex{{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
+        GeometryVertex{{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
+        GeometryVertex{{x + 0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
+        GeometryVertex{{x + -0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
+
+        // left face -X
+        GeometryVertex{{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
+        GeometryVertex{{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
+        GeometryVertex{{x + -0.5f, y + -0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
+        GeometryVertex{{x + -0.5f, y + 0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
+
+        // right face +X
+        GeometryVertex{{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
+        GeometryVertex{{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
+        GeometryVertex{{x + 0.5f, y + -0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
+        GeometryVertex{{x + 0.5f, y + 0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
+    };
+    vertices.insert(vertices.end(), vertices1.begin(), vertices1.end());
+
+    const std::array indices2 = {
+        // back
+        beg_vertex + 0, beg_vertex + 2, beg_vertex + 1, beg_vertex + 1, beg_vertex + 2, beg_vertex + 3,
+        // front +4
+        beg_vertex + 4, beg_vertex + 5, beg_vertex + 7, beg_vertex + 4, beg_vertex + 7, beg_vertex + 6,
+        // left +8
+        beg_vertex + 9, beg_vertex + 8, beg_vertex + 10, beg_vertex + 10, beg_vertex + 8, beg_vertex + 11,
+        // right +12
+        beg_vertex + 13, beg_vertex + 14, beg_vertex + 12, beg_vertex + 14, beg_vertex + 15, beg_vertex + 12,
+        // front +16
+        beg_vertex + 17, beg_vertex + 16, beg_vertex + 19, beg_vertex + 18, beg_vertex + 17, beg_vertex + 19,
+        // back +20
+        //beg_vertex + 21, beg_vertex + 23, beg_vertex + 20, beg_vertex + 22, beg_vertex + 23, beg_vertex + 21
+    };
+    indices.insert(indices.end(), indices2.begin(), indices2.end());
+}
+
+void DX12Sample::CreateIslandCubes()
+{
+    float blockWidth  = 1.0f;
+    float islandWidth = blockWidth * mapSize;
+
+    std::vector<GeometryVertex> vertices;
+    vertices.reserve(mapSize * mapSize * 8);
+    std::vector<uint32_t> indices;
+
+    for (int y = 0; y < mapSize; y++)
+    {
+        for (int x = 0; x < mapSize; x++)
+        {
+            int height = _worldGen.GetHeight(x, y);
+
+            const float nz = height;
+            const float nx = -islandWidth / 2 + islandWidth * ((float)x / mapSize);
+            const float ny = -islandWidth / 2 + islandWidth * ((float)y / mapSize);
+            GenerateCube({nx, ny, nz}, vertices, indices);
+        }
+    }
+
+    auto              obj = _sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
+    SpecularMaterial& mtl = std::get<SpecularMaterial>(obj->GetMaterial().GetParams());
+    mtl.color             = {0.7f, 0.7f, 0.3f};
+    mtl.reflectance       = 500.0f;
+    obj->Position({0.0, 2.0, 0.0});
+}
+
 void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int islandSize)
 {
     auto& calcNorm = [&vertices](uint32_t i1, uint32_t i2, uint32_t i3) {
@@ -560,107 +660,6 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
         calcNorm(index, index + 1, index + islandSize + 1);
         //calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
     }
-}
-
-void DX12Sample::GenerateCube(XMFLOAT3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices)
-{
-    uint32_t beg_vertex = vertices.size();
-
-    const float offset = 0.5f;
-
-    const float x = topPoint.x + offset;
-    const float y = topPoint.y + offset;
-    const float z = topPoint.z + offset;
-
-    const float bottom = -55.0f;
-
-    auto colorX = _colorsLut.lower_bound(z)->second;
-
-    XMFLOAT3 color = { colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f };
-
-    const std::vector<GeometryVertex> vertices1 = {
-        // back face +Z
-        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-
-        // front face -Z
-        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-
-        // bottom face -Y
-        {{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
-        {{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
-        {{x + 0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
-        {{x + -0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
-
-        // top face +Y
-        {{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
-        {{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
-        {{x + 0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
-        {{x + -0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
-
-        // left face -X
-        {{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
-        {{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
-        {{x + -0.5f, y + -0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
-        {{x + -0.5f, y + 0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
-
-        // right face +X
-        {{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
-        {{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
-        {{x + 0.5f, y + -0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
-        {{x + 0.5f, y + 0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
-    };
-    vertices.insert(vertices.end(), vertices1.begin(), vertices1.end());
-
-    std::vector<uint32_t> indices2 = {
-        // back
-        beg_vertex + 0, beg_vertex + 2, beg_vertex + 1, beg_vertex + 1, beg_vertex + 2, beg_vertex + 3,
-        // front +4
-        beg_vertex + 4, beg_vertex + 5, beg_vertex + 7, beg_vertex + 4, beg_vertex + 7, beg_vertex + 6,
-        // left +8
-        beg_vertex + 9, beg_vertex + 8, beg_vertex + 10, beg_vertex + 10, beg_vertex + 8, beg_vertex + 11,
-        // right +12
-        beg_vertex + 13, beg_vertex + 14, beg_vertex + 12, beg_vertex + 14, beg_vertex + 15, beg_vertex + 12,
-        // front +16
-        beg_vertex + 17, beg_vertex + 16, beg_vertex + 19, beg_vertex + 18, beg_vertex + 17, beg_vertex + 19,
-        // back +20
-        beg_vertex + 21, beg_vertex + 23, beg_vertex + 20, beg_vertex + 22, beg_vertex + 23, beg_vertex + 21 };
-    indices.insert(indices.end(), indices2.begin(), indices2.end());
-}
-
-void DX12Sample::CreateIslandCubes()
-{
-    std::size_t islandSizeInBlocks = _worldGen.GetSideSize();
-    float       blockWidth         = 1.0f;
-    float       islandWidth        = blockWidth * islandSizeInBlocks;
-
-    std::vector<GeometryVertex> vertices;
-    vertices.reserve(islandSizeInBlocks * islandSizeInBlocks * 8);
-    std::vector<uint32_t> indices;
-
-    for (int y = 0; y < islandSizeInBlocks; y++)
-    {
-        for (int x = 0; x < islandSizeInBlocks; x++)
-        {
-            int height = _worldGen.GetHeight(x, y);
-
-            const float nz = height;
-            const float nx = -islandWidth / 2 + islandWidth * ((float)x / islandSizeInBlocks);
-            const float ny = -islandWidth / 2 + islandWidth * ((float)y / islandSizeInBlocks);
-            GenerateCube({nx, ny, nz}, vertices, indices);
-        }
-    }
-
-    auto              obj = _sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
-    SpecularMaterial& mtl = std::get<SpecularMaterial>(obj->GetMaterial().GetParams());
-    mtl.color             = {0.7f, 0.7f, 0.3f};
-    mtl.reflectance       = 500.0f;
-    obj->Position({0.0, 2.0, 0.0});
 }
 
 void DX12Sample::CreateIsland()
