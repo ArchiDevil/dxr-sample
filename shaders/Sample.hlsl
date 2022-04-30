@@ -100,6 +100,11 @@ float3 PhongDiffuse(float NoL, float3 lightColor, float3 albedo)
     return lightColor * albedo * saturate(NoL); // / 3.14159265;
 }
 
+float3 PhongSpecular(float NoV, float3 lightColor, float reflectance)
+{
+    return lightColor * pow(saturate(NoV), reflectance);
+}
+
 [shader("closesthit")]
 void SpecularShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAttributes attr)
 {
@@ -112,7 +117,8 @@ void SpecularShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionA
 
     float3 currentPos = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
     float3 r = reflect(normalize(currentPos - sceneParams.viewPos.xyz), n);
-    float3 specularColor = lightParams.color.xyz * pow(saturate(dot(r, l)), modelParams.reflectance);
+    float NoV = dot(r, l);
+    float3 specularColor = PhongSpecular(NoV, lightParams.color.xyz, modelParams.reflectance);
 
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
@@ -127,8 +133,7 @@ void DiffuseShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAt
     float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
     float3 l = -normalize(lightParams.direction.xyz);
     float NoL = dot(n, l);
-    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, modelParams.color.xyz);
-
+    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, v.color);
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
     rayPayload.color = float4(diffuseColor + ambientColor, 1.0);

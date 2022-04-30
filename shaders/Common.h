@@ -28,7 +28,6 @@ struct LightParams
 
 struct ModelParams
 {
-    float4   color;
     float4x4 worldMatrix;
     float reflectance;
 };
