@@ -19,7 +19,7 @@ constexpr std::size_t GetIndex(std::size_t x, std::size_t y, std::size_t sideSiz
 
 constexpr double GetAmplitude(int octaves, double persistance)
 {
-    double result    = 0.0;
+    double result = 0.0;
 
     double amplitude = 1.0;
     for (auto octave = 0; octave < octaves; ++octave)
@@ -98,9 +98,9 @@ void WorldGen::GenerateHeightMap2()
     }
 }
 
-uint8_t WorldGen::GetHeight(std::size_t x, std::size_t y)
+uint8_t WorldGen::GetHeight(std::size_t x, std::size_t y) const
 {
-    return _heightMap[GetIndex(x, y, _sideSize)];
+    return _heightMap.at(GetIndex(x, y, _sideSize));
 }
 
 std::size_t WorldGen::GetSideSize() const

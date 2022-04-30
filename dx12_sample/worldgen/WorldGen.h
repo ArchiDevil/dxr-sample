@@ -19,15 +19,13 @@ public:
                                   double offset     = 20.0,
                                   double multiplier = 125.0);
     void        GenerateHeightMap2();
-    uint8_t     GetHeight(std::size_t x, std::size_t y);
+    uint8_t     GetHeight(std::size_t x, std::size_t y) const;
     std::size_t GetSideSize() const;
 
     Noise& GetNoise();
 
 private:
-    Noise       _noise;
-    std::size_t _sideSize;
-
-    static const int     _worldSize = 1024;
+    Noise                _noise;
+    std::size_t          _sideSize;
     std::vector<uint8_t> _heightMap;
 };
