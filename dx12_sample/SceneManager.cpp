@@ -25,7 +25,7 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
                   static_cast<float>(screenWidth),
                   static_cast<float>(screenHeight))
     , _meshManager(_deviceResources->GetDevice())
-    , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128)
+    , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 512)
     , _cmdList(CommandListType::Direct, _deviceResources->GetDevice())
 {
     assert(rtManager);
