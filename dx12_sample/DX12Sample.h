@@ -37,8 +37,6 @@ private:
     void AdjustSizes();
 
     void CreateIsland();
-    void CreateIslandCubes();
-    void GenerateCube(XMFLOAT3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices);
 
     std::shared_ptr<DeviceResources> CreateDeviceResources();
 
