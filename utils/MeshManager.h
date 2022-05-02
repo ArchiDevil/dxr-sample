@@ -15,6 +15,7 @@ public:
     std::shared_ptr<MeshObject> CreateCube(std::function<void(CommandList&)> cmdListExecutor);
     std::shared_ptr<MeshObject> CreateEmptyCube(std::function<void(CommandList&)> cmdListExecutor);
     std::shared_ptr<MeshObject> CreatePlane(std::function<void(CommandList&)> cmdListExecutor);
+    std::shared_ptr<MeshObject> CreateAxes(std::function<void(CommandList&)> cmdListExecutor);
     std::shared_ptr<MeshObject> CreateScreenQuad();
 
     std::shared_ptr<MeshObject> CreateCustomObject(const std::vector<GeometryVertex>& vertices,
@@ -32,4 +33,5 @@ private:
     std::shared_ptr<MeshObject>              _plane      = nullptr;
     std::shared_ptr<MeshObject>              _cube       = nullptr;
     std::shared_ptr<MeshObject>              _emptyCube  = nullptr;
+    std::shared_ptr<MeshObject>              _axes       = nullptr;
 };
