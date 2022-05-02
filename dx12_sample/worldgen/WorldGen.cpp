@@ -57,9 +57,14 @@ void WorldGen::GenerateHeightMap(int    octaves,
             value += amplitude;
             value /= amplitude * 2.0;
 
+            // calculate a length from the center of the map
             double length2 = Length(i, j) > 1.0 ? 1.0 : DLength(i, j);
-            double curMult = 0.05 + 0.95 * length2;
-            value *= (1 - curMult * curMult);
+
+            // adjust value according to the length from the center
+            value *= (1 - length2 * length2);
+
+            // adjust contast
+            value *= value;
 
             std::size_t cellX = (std::size_t)(i * _sideSize / 2);
             std::size_t cellY = (std::size_t)(j * _sideSize / 2);
