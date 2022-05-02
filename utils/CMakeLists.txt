@@ -14,6 +14,7 @@ set(SRC
     MeshManager.h
     MeshObject.cpp
     MeshObject.h
+    Misc.h
     RenderTargetManager.cpp
     RenderTargetManager.h
     RootSignature.cpp

@@ -504,13 +504,11 @@ void SceneManager::UpdateObjects()
 
     _sceneObjects.back()->Rotation(_sceneObjects.back()->Rotation() + 0.01f);
 
-    bool anyDirty = std::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
-                                [](const SceneObjectPtr& object) { return object->IsDirty(); });
-
+    bool anyDirty = std::ranges::any_of(_sceneObjects, [](const SceneObjectPtr& object) { return object->IsDirty(); });
     if (anyDirty)
     {
         BuildTLAS();
-        std::for_each(_sceneObjects.begin(), _sceneObjects.end(), [](SceneObjectPtr& object) { object->ResetDirty(); });
+        std::ranges::for_each(_sceneObjects, [](SceneObjectPtr& object) { object->ResetDirty(); });
     }
 }
 

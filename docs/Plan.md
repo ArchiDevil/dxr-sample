@@ -39,7 +39,7 @@
 
 ## Other tasks
 
-- [ ] Switch to C++20 -- EASY
+- [x] Switch to C++20 -- EASY
 - [ ] Implement procedural generation of simple objects: -- EASY
     - [ ] Sphere
     - [ ] Torus
