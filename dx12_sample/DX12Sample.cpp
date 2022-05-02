@@ -533,7 +533,7 @@ void DX12Sample::CreateObjects()
 
 void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int islandSize)
 {
-    auto& calcNorm = [&vertices](uint32_t i1, uint32_t i2, uint32_t i3) {
+    auto calcNorm = [&vertices](uint32_t i1, uint32_t i2, uint32_t i3) {
         GeometryVertex& vertex1 = vertices[i1];
         const float3& position = vertex1.position;
         DirectX::FXMVECTOR pos1 = DirectX::FXMVECTOR({ position.x, position.y, position.z });
@@ -548,7 +548,6 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
 
         XMVECTOR vector1 = DirectX::XMVectorSubtract(pos2, pos1);
         XMVECTOR vector2 = DirectX::XMVectorSubtract(pos3, pos1);
-
 
         XMVECTOR cross = DirectX::XMVector3Cross(vector1, vector2);
         DirectX::XMVECTOR norm = DirectX::XMVector3Normalize(cross);
