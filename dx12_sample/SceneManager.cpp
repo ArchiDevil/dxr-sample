@@ -509,13 +509,13 @@ void SceneManager::UpdateObjects()
     ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({ _lightDir[0], _lightDir[1], _lightDir[2], 1.0});
     ((LightParams*)sceneData)->color     = DirectX::XMVECTOR({_lightColors[0], _lightColors[1], _lightColors[2], 1.0});
 
-    bool anyDirty = std::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
-                                [](const SceneObjectPtr& object) { return object->IsDirty(); });
+    bool anyDirty = std::ranges::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
+        [](const SceneObjectPtr& object) { return object->IsDirty(); });
 
     if (anyDirty)
     {
         BuildTLAS();
-        std::for_each(_sceneObjects.begin(), _sceneObjects.end(), [](SceneObjectPtr& object) { object->ResetDirty(); });
+        std::ranges::for_each(_sceneObjects, [](SceneObjectPtr& object) { object->ResetDirty(); });
     }
 }
 

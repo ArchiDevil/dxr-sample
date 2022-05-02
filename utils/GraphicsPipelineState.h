@@ -3,6 +3,7 @@
 #include "stdafx.h"
 #include "Types.h"
 #include "RootSignature.h"
+#include "Misc.h"
 
 class GraphicsPipelineState
 {
