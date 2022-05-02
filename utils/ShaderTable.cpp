@@ -38,7 +38,7 @@ void ShaderTable::AddEntry(std::size_t idx, ShaderEntry entry)
     assert(idx * _stride <= GetSize());
 
     void* data = nullptr;
-    _buffer->Map(0, nullptr, &reinterpret_cast<void*>(data));
+    _buffer->Map(0, nullptr, reinterpret_cast<void**>(&data));
 
     uint8_t* ptr = reinterpret_cast<uint8_t*>(data);
     ptr += _stride * idx;
