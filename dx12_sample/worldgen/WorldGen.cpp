@@ -1,10 +1,5 @@
 #include "WorldGen.h"
 
-Noise& WorldGen::GetNoise()
-{
-    return _noise;
-}
-
 double Length(double x, double y)
 {
     x -= 1.0;
@@ -12,9 +7,11 @@ double Length(double x, double y)
     return sqrt(x * x + y * y);
 }
 
-constexpr std::size_t GetIndex(std::size_t x, std::size_t y, std::size_t sideSize)
+constexpr double DLength(double x, double y)
 {
-    return x * sideSize + y;
+    x -= 1.0;
+    y -= 1.0;
+    return x * x + y * y;
 }
 
 constexpr double GetAmplitude(int octaves, double persistance)
@@ -60,7 +57,7 @@ void WorldGen::GenerateHeightMap(int    octaves,
             value += amplitude;
             value /= amplitude * 2.0;
 
-            double length2 = Length(i, j) > 1.0 ? 1.0 : Length(i, j) * Length(i, j);
+            double length2 = Length(i, j) > 1.0 ? 1.0 : DLength(i, j);
             double curMult = 0.05 + 0.95 * length2;
             value *= (1 - curMult * curMult);
 
@@ -96,14 +93,4 @@ void WorldGen::GenerateHeightMap2()
             _heightMap[GetIndex(col, row, _sideSize)] = 20 + noise * 125.0;
         }
     }
-}
-
-uint8_t WorldGen::GetHeight(std::size_t x, std::size_t y) const
-{
-    return _heightMap.at(GetIndex(x, y, _sideSize));
-}
-
-std::size_t WorldGen::GetSideSize() const
-{
-    return _sideSize;
 }

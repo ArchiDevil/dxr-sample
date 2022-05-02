@@ -1,5 +1,7 @@
 #include "TerrainManager.h"
 
+#include <iostream>
+
 TerrainManager::TerrainManager(const WorldGen&                   worldGenerator,
                                const std::map<uint8_t, XMUINT3>& colorsLut,
                                std::size_t                       chunkSize /* = 128*/)
@@ -19,6 +21,14 @@ void TerrainManager::GenerateChunks()
             _chunks.emplace_back(GenerateChunk(x, y));
         }
     }
+    
+    std::size_t totalIndicesCount = 0;
+    for (auto& chunk : _chunks)
+    {
+        totalIndicesCount += chunk.indices.size();
+    }
+    
+    std::cout << "Total indices count: " << totalIndicesCount << ", triangles = " << totalIndicesCount / 3 << std::endl;
 }
 
 TerrainChunk TerrainManager::GenerateChunk(int startX, int startY)
@@ -33,86 +43,96 @@ TerrainChunk TerrainManager::GenerateChunk(int startX, int startY)
     std::vector<uint32_t> indices;
     indices.reserve(vertices.size() * 4);
 
+    uint32_t currentIdx = 0;
     for (int y = startY; y < startY + _chunkSize; y++)
     {
         for (int x = startX; x < startX + _chunkSize; x++)
         {
-            const float nz = _worldGenerator.GetHeight(x, y);
-            const float nx = -(_chunkSize / 2.0f) + x - startX;
-            const float ny = -(_chunkSize / 2.0f) + y - startY;
-            GenerateCube({nx, ny, nz}, vertices, indices);
+            const float height = _worldGenerator.GetHeight(x, y);
+            const float xpos   = -(_chunkSize / 2.0f) + x - startX;
+            const float ypos   = -(_chunkSize / 2.0f) + y - startY;
+
+            const auto     colorX = _colorsLut.lower_bound(height)->second;
+            const XMFLOAT3 color  = {colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f};
+
+            // generate top edge
+            std::array topVertices = {
+                GeometryVertex{{xpos + 0.5f, ypos + +0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
+                GeometryVertex{{xpos + 0.5f, ypos + +-0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
+                GeometryVertex{{xpos + -0.5f, ypos + +0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
+                GeometryVertex{{xpos + -0.5f, ypos + +-0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
+            };
+
+            vertices.insert(vertices.end(), topVertices.cbegin(), topVertices.cend());
+            indices.insert(indices.end(), {currentIdx + 0, currentIdx + 2, currentIdx + 1, currentIdx + 1,
+                                           currentIdx + 2, currentIdx + 3});
+            currentIdx += 4;
+
+            // generate +X edge
+            float heightDiff = height - _worldGenerator.GetHeight(x + 1, y);
+            if (heightDiff > 0.0) // current block is higher
+            {
+                std::array rightVertices = {
+                    GeometryVertex{{xpos + 0.5f, ypos + -0.5f, height}, {1.0f, 0.0f, 0.0f}, color},
+                    GeometryVertex{{xpos + 0.5f, ypos + -0.5f, height - heightDiff}, {1.0f, 0.0f, 0.0f}, color},
+                    GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height - heightDiff}, {1.0f, 0.0f, 0.0f}, color},
+                    GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height}, {1.0f, 0.0f, 0.0f}, color},
+                };
+                vertices.insert(vertices.end(), rightVertices.cbegin(), rightVertices.cend());
+                indices.insert(indices.end(), { currentIdx + 0, currentIdx + 1, currentIdx + 3, currentIdx + 1,
+                                               currentIdx + 2, currentIdx + 3 });
+                currentIdx += 4;
+            }
+
+            // generate -X edge
+            heightDiff = height - _worldGenerator.GetHeight(x - 1, y);
+            if (heightDiff > 0.0) // current block is higher
+            {
+                std::array leftVertices = {
+                    GeometryVertex{{xpos - 0.5f, ypos + -0.5f, height}, {-1.0f, 0.0f, 0.0f}, color},
+                    GeometryVertex{{xpos - 0.5f, ypos + -0.5f, height - heightDiff}, {-1.0f, 0.0f, 0.0f}, color},
+                    GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height - heightDiff}, {-1.0f, 0.0f, 0.0f}, color},
+                    GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height}, {-1.0f, 0.0f, 0.0f}, color},
+                };
+                vertices.insert(vertices.end(), leftVertices.cbegin(), leftVertices.cend());
+                indices.insert(indices.end(), { currentIdx + 0, currentIdx + 3, currentIdx + 1, currentIdx + 1,
+                                               currentIdx + 3, currentIdx + 2 });
+                currentIdx += 4;
+            }
+
+            // generate +Y edge
+            heightDiff = height - _worldGenerator.GetHeight(x, y + 1);
+            if (heightDiff > 0.0) // current block is higher
+            {
+                std::array frontVertices = {
+                    GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height}, {0.0f, 1.0f, 0.0f}, color},
+                    GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height - heightDiff}, {0.0f, 1.0f, 0.0f}, color},
+                    GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height - heightDiff}, {0.0f, 1.0f, 0.0f}, color},
+                    GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height}, {0.0f, 1.0f, 0.0f}, color},
+                };
+                vertices.insert(vertices.end(), frontVertices.cbegin(), frontVertices.cend());
+                indices.insert(indices.end(), { currentIdx + 0, currentIdx + 1, currentIdx + 2, currentIdx + 2,
+                                               currentIdx + 3, currentIdx + 0 });
+                currentIdx += 4;
+            }
+
+            // generate -Y edge
+            heightDiff = height - _worldGenerator.GetHeight(x, y - 1);
+            if (heightDiff > 0.0) // current block is higher
+            {
+                std::array backVertices = {
+                    GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height}, {0.0f, 1.0f, 0.0f}, color},
+                    GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height - heightDiff}, {0.0f, 1.0f, 0.0f}, color},
+                    GeometryVertex{{xpos - 0.5f, ypos - 0.5f, height - heightDiff}, {0.0f, 1.0f, 0.0f}, color},
+                    GeometryVertex{{xpos - 0.5f, ypos - 0.5f, height}, {0.0f, 1.0f, 0.0f}, color},
+                };
+                vertices.insert(vertices.end(), backVertices.cbegin(), backVertices.cend());
+                indices.insert(indices.end(), { currentIdx + 1, currentIdx + 0, currentIdx + 2, currentIdx + 2,
+                                               currentIdx + 0, currentIdx + 3 });
+                currentIdx += 4;
+            }
         }
     }
 
     return TerrainChunk{startX, startY, std::move(vertices), std::move(indices)};
-}
-
-void TerrainManager::GenerateCube(XMFLOAT3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices)
-{
-    uint32_t beg_vertex = vertices.size();
-
-    const float offset = 0.5f;
-
-    const float x = topPoint.x + offset;
-    const float y = topPoint.y + offset;
-    const float z = topPoint.z + offset;
-
-    const float bottom = 0.0f;
-
-    auto     colorX = _colorsLut.lower_bound(z)->second;
-    XMFLOAT3 color  = {colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f};
-
-    const std::array vertices1 = {
-        // back face +Z
-        GeometryVertex{{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-        GeometryVertex{{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-        GeometryVertex{{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-        GeometryVertex{{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, 0.0f, 1.0f}, color},
-
-        // front face -Z
-        GeometryVertex{{x + 0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-        GeometryVertex{{x + 0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-        GeometryVertex{{x + -0.5f, y + 0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-        GeometryVertex{{x + -0.5f, y + -0.5f, bottom}, {0.0f, 0.0f, -1.0f}, color},
-
-        // bottom face -Y
-        GeometryVertex{{x + -0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
-        GeometryVertex{{x + 0.5f, y + -0.5f, z + 0.5f}, {0.0f, -1.0f, 0.0f}, color},
-        GeometryVertex{{x + 0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
-        GeometryVertex{{x + -0.5f, y + -0.5f, bottom}, {0.0f, -1.0f, 0.0f}, color},
-
-        // top face +Y
-        GeometryVertex{{x + -0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
-        GeometryVertex{{x + 0.5f, y + 0.5f, z + 0.5f}, {0.0f, 1.0f, 0.0f}, color},
-        GeometryVertex{{x + 0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
-        GeometryVertex{{x + -0.5f, y + 0.5f, bottom}, {0.0f, 1.0f, 0.0f}, color},
-
-        // left face -X
-        GeometryVertex{{x + -0.5f, y + 0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
-        GeometryVertex{{x + -0.5f, y + -0.5f, z + 0.5f}, {-1.0f, 0.0f, 0.0f}, color},
-        GeometryVertex{{x + -0.5f, y + -0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
-        GeometryVertex{{x + -0.5f, y + 0.5f, bottom}, {-1.0f, 0.0f, 0.0f}, color},
-
-        // right face +X
-        GeometryVertex{{x + 0.5f, y + 0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
-        GeometryVertex{{x + 0.5f, y + -0.5f, z + 0.5f}, {1.0f, 0.0f, 0.0f}, color},
-        GeometryVertex{{x + 0.5f, y + -0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
-        GeometryVertex{{x + 0.5f, y + 0.5f, bottom}, {1.0f, 0.0f, 0.0f}, color},
-    };
-    vertices.insert(vertices.end(), vertices1.begin(), vertices1.end());
-
-    const std::array indices2 = {
-        // back
-        beg_vertex + 0, beg_vertex + 2, beg_vertex + 1, beg_vertex + 1, beg_vertex + 2, beg_vertex + 3,
-        // front +4
-        beg_vertex + 4, beg_vertex + 5, beg_vertex + 7, beg_vertex + 4, beg_vertex + 7, beg_vertex + 6,
-        // left +8
-        beg_vertex + 9, beg_vertex + 8, beg_vertex + 10, beg_vertex + 10, beg_vertex + 8, beg_vertex + 11,
-        // right +12
-        beg_vertex + 13, beg_vertex + 14, beg_vertex + 12, beg_vertex + 14, beg_vertex + 15, beg_vertex + 12,
-        // front +16
-        beg_vertex + 17, beg_vertex + 16, beg_vertex + 19, beg_vertex + 18, beg_vertex + 17, beg_vertex + 19,
-        // back +20
-        beg_vertex + 21, beg_vertex + 23, beg_vertex + 20, beg_vertex + 22, beg_vertex + 23, beg_vertex + 21};
-    indices.insert(indices.end(), indices2.begin(), indices2.end());
 }

@@ -27,7 +27,6 @@ public:
 private:
     void         GenerateChunks();
     TerrainChunk GenerateChunk(int startX, int startY);
-    void         GenerateCube(XMFLOAT3 topPoint, std::vector<GeometryVertex>& vertices, std::vector<uint32_t>& indices);
 
     const std::size_t                 _chunkSize;
     const WorldGen&                   _worldGenerator;
