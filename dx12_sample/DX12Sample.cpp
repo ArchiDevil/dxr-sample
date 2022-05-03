@@ -110,13 +110,7 @@ void DX12Sample::OnUpdate()
         elapsedFrames = 0;
         elapsedTime -= 1.0;
     }
-
-    //if (!_mouseSceneTracker.lBtnPressed)
-    //{
-    //    _sceneManager->GetCamera().SetRotation(_sceneManager->GetCamera().GetCameraPosition().rotation + dt * 10.0f );
-    //    return;
-    //}
-
+    
     float dx = _mouseSceneTracker.camPosition.rotation + _mouseSceneTracker.pressedPoint.x - _mouseSceneTracker.currPoint.x;
     float dy = _mouseSceneTracker.camPosition.inclination - _mouseSceneTracker.pressedPoint.y + _mouseSceneTracker.currPoint.y;
 
@@ -512,18 +506,13 @@ ComPtr<IDXGISwapChain3> DX12Sample::CreateSwapChain(ComPtr<IDXGIFactory4>      f
 
 void DX12Sample::CreateObjects()
 {
-    auto              cube     = _sceneManager->CreateCube();
-    SpecularMaterial& specular = std::get<SpecularMaterial>(cube->GetMaterial().GetParams());
-    specular.reflectance       = 350.0f;
-    specular.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
-    cube->Position({2.0, 0.0, 0.0});
+    auto lut = _colorsLut;
+    // we do not need to gen colors for water
+    lut.erase(40);
+    lut.erase(50);
+    lut[40] = XMUINT3{ 127, 127, 127 }; // rocky bottom
 
-    auto             emptyCube = _sceneManager->CreateEmptyCube();
-    DiffuseMaterial& diffuse   = std::get<DiffuseMaterial>(emptyCube->GetMaterial().GetParams());
-    diffuse.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
-    emptyCube->Rotation(0.5f);
-
-    TerrainManager tm{_worldGen, _colorsLut, 128};
+    TerrainManager tm{_worldGen, lut, 128};
     for (auto& chunk : tm.GetChunks())
     {
         auto obj = _sceneManager->CreateCustomObject(chunk.vertices, chunk.indices, Material{MaterialType::Diffuse});
