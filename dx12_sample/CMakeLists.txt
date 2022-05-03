@@ -13,8 +13,6 @@ set(SRC
 set(TERRAIN_SRC
     worldgen/Noise.cpp
     worldgen/Noise.h
-    worldgen/SimplexNoise.cpp
-    worldgen/SimplexNoise.h
     worldgen/TerrainManager.cpp
     worldgen/TerrainManager.h
     worldgen/WorldGen.cpp

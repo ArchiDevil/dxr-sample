@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Noise.h"
-#include "SimplexNoise.h"
 
 #include <cstdint>
 #include <vector>
@@ -22,7 +21,6 @@ public:
                            double lacunarity,
                            double offset     = 20.0,
                            double multiplier = 200.0);
-    void GenerateHeightMap2();
 
     uint8_t GetHeight(int x, int y) const
     {
