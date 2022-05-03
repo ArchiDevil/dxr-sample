@@ -197,6 +197,9 @@ void SceneManager::CreateHitTable()
         case MaterialType::Specular:
             shaderIdentifier = props->GetShaderIdentifier(L"SpecularHitGroup");
             break;
+        case MaterialType::Water:
+            shaderIdentifier = props->GetShaderIdentifier(L"WaterHitGroup");
+            break;
         }
 
         _hitTable->AddEntry(i, ShaderEntry{shaderIdentifier, data.data(), data.size() * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)});
@@ -334,6 +337,7 @@ void SceneManager::CreateRaytracingPSO()
     exports.push_back(D3D12_EXPORT_DESC{ L"MissShader" });
     exports.push_back(D3D12_EXPORT_DESC{ L"DiffuseShader" });
     exports.push_back(D3D12_EXPORT_DESC{ L"SpecularShader" });
+    exports.push_back(D3D12_EXPORT_DESC{ L"WaterShader" });
 
     library_desc.NumExports = exports.size();
     library_desc.pExports = exports.data();
@@ -365,6 +369,17 @@ void SceneManager::CreateRaytracingPSO()
         D3D12_STATE_SUBOBJECT hitGroupSubobject = {};
         hitGroupSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
         hitGroupSubobject.pDesc = &hitGroupDesc2;
+        subobjects.emplace_back(hitGroupSubobject);
+    }
+
+    D3D12_HIT_GROUP_DESC hitGroupDesc3 = {};
+    hitGroupDesc3.Type = D3D12_HIT_GROUP_TYPE::D3D12_HIT_GROUP_TYPE_TRIANGLES;
+    hitGroupDesc3.HitGroupExport = L"WaterHitGroup";
+    hitGroupDesc3.ClosestHitShaderImport = L"WaterShader";
+    {
+        D3D12_STATE_SUBOBJECT hitGroupSubobject = {};
+        hitGroupSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+        hitGroupSubobject.pDesc = &hitGroupDesc3;
         subobjects.emplace_back(hitGroupSubobject);
     }
 

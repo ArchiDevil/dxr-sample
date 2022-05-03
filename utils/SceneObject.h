@@ -10,7 +10,8 @@
 enum class MaterialType
 {
     Diffuse,
-    Specular
+    Specular,
+    Water
 };
 
 struct DiffuseMaterial
@@ -22,6 +23,12 @@ struct SpecularMaterial
 {
     XMFLOAT3 color       = {1.0f, 1.0f, 1.0f};
     float    reflectance = 10.0f;
+};
+
+struct WaterMaterial
+{
+    XMFLOAT3 fadeColor = {1.0f, 1.0f, 1.0f};
+    float    n         = 1.33f;
 };
 
 class Material
@@ -37,6 +44,9 @@ public:
             break;
         case MaterialType::Specular:
             _params.emplace<SpecularMaterial>();
+            break;
+        case MaterialType::Water:
+            _params.emplace<WaterMaterial>();
             break;
         default:
             assert(false);
@@ -55,8 +65,8 @@ public:
     }
 
 private:
-    MaterialType                                    _type;
-    std::variant<DiffuseMaterial, SpecularMaterial> _params;
+    MaterialType                                                   _type;
+    std::variant<DiffuseMaterial, SpecularMaterial, WaterMaterial> _params;
 };
 
 class alignas(16) SceneObject

@@ -10,8 +10,11 @@ struct TerrainChunk
 {
     int absX, absY;
 
-    std::vector<GeometryVertex> vertices;
-    std::vector<uint32_t>       indices;
+    std::vector<GeometryVertex> landVertices;
+    std::vector<uint32_t>       landIndices;
+
+    std::vector<GeometryVertex> waterVertices;
+    std::vector<uint32_t>       waterIndices;
 };
 
 class TerrainManager
@@ -27,6 +30,22 @@ public:
 private:
     void         GenerateChunks();
     TerrainChunk GenerateChunk(int startX, int startY);
+
+    void GenerateLandCol(int                          x,
+                         int                          y,
+                         uint32_t&                    currentIdx,
+                         std::vector<GeometryVertex>& vertices,
+                         std::vector<uint32_t>&       indices,
+                         int                          startX,
+                         int                          startY);
+
+    void GenerateWaterQuad(int                          x,
+                           int                          y,
+                           uint32_t&                    currentIdx,
+                           std::vector<GeometryVertex>& vertices,
+                           std::vector<uint32_t>&       indices,
+                           int                          startX,
+                           int                          startY);
 
     const std::size_t                 _chunkSize;
     const WorldGen&                   _worldGenerator;

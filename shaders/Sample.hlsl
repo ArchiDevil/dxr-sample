@@ -106,7 +106,7 @@ float3 PhongSpecular(float NoV, float3 lightColor, float reflectance)
 }
 
 [shader("closesthit")]
-void SpecularShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAttributes attr)
+void SpecularShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
 
@@ -122,11 +122,11 @@ void SpecularShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionA
 
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
-    rayPayload.color = float4(specularColor + diffuseColor + ambientColor, 1.0);
+    payload.color = float4(specularColor + diffuseColor + ambientColor, 1.0);
 }
 
 [shader("closesthit")]
-void DiffuseShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAttributes attr)
+void DiffuseShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
 
@@ -136,5 +136,11 @@ void DiffuseShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAt
     float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, v.color);
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
-    rayPayload.color = float4(diffuseColor + ambientColor, 1.0);
+    payload.color = float4(diffuseColor + ambientColor, 1.0);
+}
+
+[shader("closesthit")]
+void WaterShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
+{
+    payload.color = float4(float3(0.6, 0.85, 0.92), 1.0);
 }
