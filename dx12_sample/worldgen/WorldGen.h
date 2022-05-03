@@ -21,7 +21,7 @@ public:
                            double frequency,
                            double lacunarity,
                            double offset     = 20.0,
-                           double multiplier = 125.0);
+                           double multiplier = 200.0);
     void GenerateHeightMap2();
 
     uint8_t GetHeight(int x, int y) const

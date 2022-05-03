@@ -64,7 +64,7 @@ void WorldGen::GenerateHeightMap(int    octaves,
             value *= (1 - length2 * length2);
 
             // adjust contast
-            value *= value;
+            value = std::pow(value, 2.2);
 
             std::size_t cellX = (std::size_t)(i * _sideSize / 2);
             std::size_t cellY = (std::size_t)(j * _sideSize / 2);
