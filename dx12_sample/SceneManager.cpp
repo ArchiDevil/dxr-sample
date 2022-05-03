@@ -384,7 +384,7 @@ void SceneManager::CreateRaytracingPSO()
     }
 
     D3D12_RAYTRACING_PIPELINE_CONFIG descPipelineConfig = {};
-    descPipelineConfig.MaxTraceRecursionDepth = 1;
+    descPipelineConfig.MaxTraceRecursionDepth           = 1;  // TODO(DB): we need to update it when we implement water
     {
         D3D12_STATE_SUBOBJECT pipelineSubobject = {};
         pipelineSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;

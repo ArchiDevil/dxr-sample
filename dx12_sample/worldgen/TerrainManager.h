@@ -3,6 +3,7 @@
 #include "WorldGen.h"
 
 #include <shaders/Common.h>
+#include <utils/GeometryTree.h>
 
 #include <cstdint>
 
@@ -20,7 +21,10 @@ struct TerrainChunk
 class TerrainManager
 {
 public:
-    TerrainManager(const WorldGen& worldGenerator, const std::map<uint8_t, XMUINT3>& colorsLut, std::size_t chunkSize = 128);
+    TerrainManager(const WorldGen&                   worldGenerator,
+                   const std::map<uint8_t, XMUINT3>& colorsLut,
+                   std::size_t                       chunkSize  = 128,
+                   std::size_t                       waterLevel = 55);
 
     const std::vector<TerrainChunk>& GetChunks() const
     {
@@ -47,7 +51,13 @@ private:
                            int                          startX,
                            int                          startY);
 
+    void GenerateWaterQuad(const TreeNode&              nodeTree,
+                           std::vector<GeometryVertex>& vertices,
+                           std::vector<uint32_t>&       indices,
+                           uint32_t&                    currentIdx);
+
     const std::size_t                 _chunkSize;
+    const std::size_t                 _waterLevel;
     const WorldGen&                   _worldGenerator;
     const std::map<uint8_t, XMUINT3>& _colorsLut;
     std::vector<TerrainChunk>         _chunks;
