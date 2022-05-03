@@ -43,6 +43,8 @@
 - [ ] Implement procedural generation of simple objects: -- EASY
     - [ ] Sphere
     - [ ] Torus
+- [ ] Implement WASD camera -- EASY
+- [ ] Implement heap resizing -- EASY
 - [ ] Implement scene tree with configurable parameters -- MEDIUM
 - [ ] Implement in-app profiler (configurable) to measure: -- MEDIUM
     - [ ] TLAS building time
@@ -50,14 +52,14 @@
     - [ ] UI drawing pass
 - [ ] Implement microsurface BRDF -- HARD
 - [ ] Switch to linear rendering with color-correction -- HARD
+- [ ] Optimize a landscape geometry using quad/octtree -- HARD
 
 ## Scene description
 
 The main idea is to have an island in a sea:
 
 - A landmass is generated procedurally using a Perlin noise.
-- The geometry is tessellated using either cubes or marching triangles.
-- Water is moving. OPTIONAL
+- The geometry is tessellated using cubes.
 - There are trees, stones, grass on the island. OPTIONAL
 - There are volumetric clouds and a sun.
 - There are possibility to change day time. OPTIONAL
