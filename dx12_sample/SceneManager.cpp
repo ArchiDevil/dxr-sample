@@ -21,7 +21,7 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     , _mainCamera(Graphics::ProjectionType::Perspective,
                   0.1f,
                   5000.f,
-                  5.0f * pi / 18.0f,
+                  7.5f * pi / 18.0f,
                   static_cast<float>(screenWidth),
                   static_cast<float>(screenHeight))
     , _meshManager(_deviceResources->GetDevice())
@@ -384,7 +384,7 @@ void SceneManager::CreateRaytracingPSO()
     }
 
     D3D12_RAYTRACING_PIPELINE_CONFIG descPipelineConfig = {};
-    descPipelineConfig.MaxTraceRecursionDepth           = 1;  // TODO(DB): we need to update it when we implement water
+    descPipelineConfig.MaxTraceRecursionDepth           = 2;  // TODO(DB): we need to update it when we implement water
     {
         D3D12_STATE_SUBOBJECT pipelineSubobject = {};
         pipelineSubobject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
@@ -393,7 +393,7 @@ void SceneManager::CreateRaytracingPSO()
     }
 
     D3D12_RAYTRACING_SHADER_CONFIG descShaderConfig = {};
-    descShaderConfig.MaxPayloadSizeInBytes = sizeof(float)*4; // TODO(DB): is it enough?
+    descShaderConfig.MaxPayloadSizeInBytes = sizeof(float) * 4; // TODO(DB): is it enough?
     descShaderConfig.MaxAttributeSizeInBytes = D3D12_RAYTRACING_MAX_ATTRIBUTE_SIZE_IN_BYTES;
     {
         D3D12_STATE_SUBOBJECT shaderSubobject = {};
