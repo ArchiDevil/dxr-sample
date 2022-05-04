@@ -7,6 +7,8 @@ set(SRC
     DescriptorHeap.h
     DXSampleHelper.h
     FeaturesCollector.h
+    GeometryTree.cpp
+    GeometryTree.h
     Math.h
     GraphicsPipelineState.cpp
     GraphicsPipelineState.h

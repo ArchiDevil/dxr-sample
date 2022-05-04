@@ -515,8 +515,14 @@ void DX12Sample::CreateObjects()
     TerrainManager tm{_worldGen, lut, 128};
     for (auto& chunk : tm.GetChunks())
     {
-        auto obj = _sceneManager->CreateCustomObject(chunk.vertices, chunk.indices, Material{MaterialType::Diffuse});
+        auto obj = _sceneManager->CreateCustomObject(chunk.landVertices, chunk.landIndices, Material{MaterialType::Diffuse});
         obj->Position({(float)chunk.absX, (float)chunk.absY, 0.0});
+        
+        if (!chunk.waterVertices.empty() && !chunk.waterIndices.empty())
+        {
+            obj = _sceneManager->CreateCustomObject(chunk.waterVertices, chunk.waterIndices, Material{MaterialType::Water});
+            obj->Position({(float)chunk.absX, (float)chunk.absY, 0.0});
+        }
     }
 }
 

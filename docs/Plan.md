@@ -24,16 +24,13 @@
     - [X] Implement possibility to create objects externally out of SceneManager
         - [X] Scene manager must provide interface to create objects
         - [X] Scene manager must provide interface to pass a custom geometry
-    - [ ] Generate a geometry of an island using Perlin noise
-        - [ ] Generate cubes for a noise data
-        - [ ] Generate geometry using a marching triangles algorithm
-    - [ ] Generate a geometry for water
-- [ ] Add textures
+    - [x] Generate a geometry of an island using Perlin noise
+        - [x] Generate cubes for a noise data
+    - [x] Generate a geometry for water
 - [ ] Add a separate pass using a convenient rendering (like a depth pass)
 - [ ] Add shadows & AO
     * Use results from depth pass
 - [ ] Add some action to scene
-    * Rebuild TLAS
 - [ ] Add reflection
 - [ ] Add transparency & refraction
 
