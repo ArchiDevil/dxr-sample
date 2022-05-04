@@ -8,9 +8,9 @@ struct RayPayload
 
 RWTexture2D<float4>              output       : register(u0); // render target
 
-ConstantBuffer<ViewParams>       sceneParams  : register(b0);
-ConstantBuffer<LightParams>      lightParams  : register(b1);
-ConstantBuffer<ModelParams>      modelParams  : register(b2);
+ConstantBuffer<ViewParams>       sceneParams    : register(b0);
+ConstantBuffer<LightParams>      lightParams    : register(b1);
+ConstantBuffer<ModelParams>      modelParams    : register(b2);
 
 RaytracingAccelerationStructure  scene        : register(t0, space0);
 StructuredBuffer<GeometryVertex> vertexBuffer : register(t1);
@@ -148,18 +148,27 @@ void DiffuseShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttri
 void WaterShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
+    float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
 
     RayDesc desc;
     desc.TMin = 0.01f;
     desc.TMax = 100.0f;
     desc.Origin = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
-    desc.Direction = WorldRayDirection();
+    
+    // 1.0 is the air refractivity
+    desc.Direction = refract(WorldRayDirection(), n, 1.0 / modelParams.reflectance);
+    
+    if (length(desc.Direction) < 0.1)
+    {
+        payload.color = float3(0.0, 0.0, 0.0);
+        return;
+    }
 
     RayPayload waterPayload;
     waterPayload.color = float3(1.0, 0.0, 0.0);
     waterPayload.hitDistance = 3100.0;
     TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, desc, waterPayload);
 
-    float hitDistance = pow(saturate(waterPayload.hitDistance / 10.0), 2.0);
+    float hitDistance = pow(saturate(waterPayload.hitDistance / 20.0), 2.0);
     payload.color = lerp(waterPayload.color.xyz, float3(0.0, 0.45, 0.69), hitDistance);
 }
