@@ -2,14 +2,15 @@
 
 struct RayPayload
 {
-    float4 color;
+    float3 color;
+    float  hitDistance;
 };
 
 RWTexture2D<float4>              output       : register(u0); // render target
 
-ConstantBuffer<ViewParams>       sceneParams  : register(b0);
-ConstantBuffer<LightParams>      lightParams  : register(b1);
-ConstantBuffer<ModelParams>      modelParams  : register(b2);
+ConstantBuffer<ViewParams>       sceneParams    : register(b0);
+ConstantBuffer<LightParams>      lightParams    : register(b1);
+ConstantBuffer<ModelParams>      modelParams    : register(b2);
 
 RaytracingAccelerationStructure  scene        : register(t0, space0);
 StructuredBuffer<GeometryVertex> vertexBuffer : register(t1);
@@ -35,8 +36,9 @@ inline void GenerateCameraRay(uint2 index, out float3 origin, out float3 directi
 void RayGenShader()
 {
     RayPayload payload;
-    payload.color = float4(0.0, 1.0, 0.0, 1.0);
-    
+    payload.color = float3(0.0, 1.0, 0.0);
+    payload.hitDistance = 3100.0;
+
     uint3 launchIndex = DispatchRaysIndex();
     RayDesc desc;
     desc.TMin = 0.01f;
@@ -45,13 +47,13 @@ void RayGenShader()
 
     TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, desc, payload);
 
-    output[launchIndex.xy] = payload.color;
+    output[launchIndex.xy] = float4(payload.color, 1.0);
 }
 
 [shader("miss")]
 void MissShader(inout RayPayload ray)
 {
-    ray.color = float4(0.6, 0.75, 1.0, 1.0);
+    ray.color = float3(0.6, 0.75, 1.0);
 }
 
 float4 DirectLight(float4 normal) {
@@ -122,7 +124,8 @@ void SpecularShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
 
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
-    payload.color = float4(specularColor + diffuseColor + ambientColor, 1.0);
+    payload.color = float3(specularColor + diffuseColor + ambientColor);
+    payload.hitDistance = min(payload.hitDistance, RayTCurrent());
 }
 
 [shader("closesthit")]
@@ -130,17 +133,42 @@ void DiffuseShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttri
 {
     GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
 
+    float3 currentPos = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
     float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
     float3 l = -normalize(lightParams.direction.xyz);
     float NoL = dot(n, l);
     float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, v.color);
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
-    payload.color = float4(diffuseColor + ambientColor, 1.0);
+    payload.color = float3(diffuseColor + ambientColor);
+    payload.hitDistance = min(payload.hitDistance, RayTCurrent());
 }
 
 [shader("closesthit")]
 void WaterShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    payload.color = float4(float3(0.6, 0.85, 0.92), 1.0);
+    GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
+    float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
+
+    RayDesc desc;
+    desc.TMin = 0.01f;
+    desc.TMax = 100.0f;
+    desc.Origin = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
+    
+    // 1.0 is the air refractivity
+    desc.Direction = refract(WorldRayDirection(), n, 1.0 / modelParams.reflectance);
+    
+    if (length(desc.Direction) < 0.1)
+    {
+        payload.color = float3(0.0, 0.0, 0.0);
+        return;
+    }
+
+    RayPayload waterPayload;
+    waterPayload.color = float3(1.0, 0.0, 0.0);
+    waterPayload.hitDistance = 3100.0;
+    TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, desc, waterPayload);
+
+    float hitDistance = pow(saturate(waterPayload.hitDistance / 20.0), 2.0);
+    payload.color = lerp(waterPayload.color.xyz, float3(0.0, 0.45, 0.69), hitDistance);
 }

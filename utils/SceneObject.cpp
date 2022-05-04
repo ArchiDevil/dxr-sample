@@ -161,6 +161,13 @@ void SceneObject::CalculateWorldMatrix()
     {
         // no params yet
     }
+    else if (_material.GetType() == MaterialType::Water)
+    {
+        WaterMaterial mtl = std::get<WaterMaterial>(_material.GetParams());
+
+        // this is not actually a reflectance, but our material system does not allow to use a separate buffer yet
+        params.reflectance = mtl.n;
+    }
 
     ModelParams* bufPtr = nullptr;
     ThrowIfFailed(_constantBuffer->Map(0, nullptr, reinterpret_cast<void**>(&bufPtr)));
