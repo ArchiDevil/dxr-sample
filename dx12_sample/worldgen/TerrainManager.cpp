@@ -23,14 +23,14 @@ void TerrainManager::GenerateChunks()
             _chunks.emplace_back(GenerateChunk(x, y));
         }
     }
-
+    
     std::size_t totalIndicesCount = 0;
     for (auto& chunk : _chunks)
     {
         totalIndicesCount += chunk.landIndices.size();
         totalIndicesCount += chunk.waterIndices.size();
     }
-
+    
     std::cout << "Total indices count: " << totalIndicesCount << ", triangles = " << totalIndicesCount / 3 << std::endl;
 }
 
@@ -84,91 +84,91 @@ void TerrainManager::GenerateLandCol(int                          x,
     const float    height = _worldGenerator.GetHeight(x, y);
     const float    xpos   = x - startX;
     const float    ypos   = y - startY;
-    const auto     colorX = _colorsLut.lower_bound(height)->second;
-    const XMFLOAT3 color  = {colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f};
+            const auto     colorX = _colorsLut.lower_bound(height)->second;
+            const XMFLOAT3 color  = {colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f};
 
-    // generate +Z edge
-    {
-        std::array topVertices = {
-            GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
-            GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
+            // generate +Z edge
+            {
+                std::array topVertices = {
+                    GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
+                    GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
             GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
             GeometryVertex{{xpos - 0.5f, ypos - 0.5f, height}, {0.0f, 0.0f, 1.0f}, color},
-        };
+                };
 
-        vertices.insert(vertices.end(), topVertices.cbegin(), topVertices.cend());
+                vertices.insert(vertices.end(), topVertices.cbegin(), topVertices.cend());
         indices.insert(indices.end(),
                        {currentIdx + 0, currentIdx + 2, currentIdx + 1, currentIdx + 1, currentIdx + 2, currentIdx + 3});
-        currentIdx += 4;
-    }
+                currentIdx += 4;
+            }
 
-    // generate +X edge
-    float heightDiff = height - _worldGenerator.GetHeight(x + 1, y);
-    if (heightDiff > 0.0)  // current block is higher
-    {
+            // generate +X edge
+            float heightDiff = height - _worldGenerator.GetHeight(x + 1, y);
+            if (heightDiff > 0.0)  // current block is higher
+            {
         XMFLOAT3   normal        = {1.0f, 0.0f, 0.0f};
-        std::array rightVertices = {
+                std::array rightVertices = {
             GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height}, normal, color},
             GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height}, normal, color},
-        };
-        vertices.insert(vertices.end(), rightVertices.cbegin(), rightVertices.cend());
+                };
+                vertices.insert(vertices.end(), rightVertices.cbegin(), rightVertices.cend());
         indices.insert(indices.end(),
                        {currentIdx + 0, currentIdx + 1, currentIdx + 3, currentIdx + 1, currentIdx + 2, currentIdx + 3});
-        currentIdx += 4;
-    }
+                currentIdx += 4;
+            }
 
-    // generate -X edge
-    heightDiff = height - _worldGenerator.GetHeight(x - 1, y);
-    if (heightDiff > 0.0)  // current block is higher
-    {
+            // generate -X edge
+            heightDiff = height - _worldGenerator.GetHeight(x - 1, y);
+            if (heightDiff > 0.0)  // current block is higher
+            {
         XMFLOAT3   normal       = {-1.0f, 0.0f, 0.0f};
-        std::array leftVertices = {
+                std::array leftVertices = {
             GeometryVertex{{xpos - 0.5f, ypos - 0.5f, height}, normal, color},
             GeometryVertex{{xpos - 0.5f, ypos - 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height}, normal, color},
-        };
-        vertices.insert(vertices.end(), leftVertices.cbegin(), leftVertices.cend());
+                };
+                vertices.insert(vertices.end(), leftVertices.cbegin(), leftVertices.cend());
         indices.insert(indices.end(),
                        {currentIdx + 0, currentIdx + 3, currentIdx + 1, currentIdx + 1, currentIdx + 3, currentIdx + 2});
-        currentIdx += 4;
-    }
+                currentIdx += 4;
+            }
 
-    // generate +Y edge
-    heightDiff = height - _worldGenerator.GetHeight(x, y + 1);
-    if (heightDiff > 0.0)  // current block is higher
-    {
+            // generate +Y edge
+            heightDiff = height - _worldGenerator.GetHeight(x, y + 1);
+            if (heightDiff > 0.0)  // current block is higher
+            {
         XMFLOAT3   normal        = {0.0f, 1.0f, 0.0f};
-        std::array frontVertices = {
+                std::array frontVertices = {
             GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height}, normal, color},
             GeometryVertex{{xpos + 0.5f, ypos + 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos - 0.5f, ypos + 0.5f, height}, normal, color},
-        };
-        vertices.insert(vertices.end(), frontVertices.cbegin(), frontVertices.cend());
+                };
+                vertices.insert(vertices.end(), frontVertices.cbegin(), frontVertices.cend());
         indices.insert(indices.end(),
                        {currentIdx + 0, currentIdx + 1, currentIdx + 2, currentIdx + 2, currentIdx + 3, currentIdx + 0});
-        currentIdx += 4;
-    }
+                currentIdx += 4;
+            }
 
-    // generate -Y edge
-    heightDiff = height - _worldGenerator.GetHeight(x, y - 1);
+            // generate -Y edge
+            heightDiff = height - _worldGenerator.GetHeight(x, y - 1);
     if (heightDiff > 0.0)  // current block is higher
-    {
+            {
         XMFLOAT3   normal       = {0.0f, -1.0f, 0.0f};
-        std::array backVertices = {
+                std::array backVertices = {
             GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height}, normal, color},
             GeometryVertex{{xpos + 0.5f, ypos - 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos - 0.5f, ypos - 0.5f, height - heightDiff}, normal, color},
             GeometryVertex{{xpos - 0.5f, ypos - 0.5f, height}, normal, color},
-        };
-        vertices.insert(vertices.end(), backVertices.cbegin(), backVertices.cend());
+                };
+                vertices.insert(vertices.end(), backVertices.cbegin(), backVertices.cend());
         indices.insert(indices.end(),
                        {currentIdx + 1, currentIdx + 0, currentIdx + 2, currentIdx + 2, currentIdx + 0, currentIdx + 3});
-        currentIdx += 4;
-    }
+                currentIdx += 4;
+            }
 }
 
 void TerrainManager::GenerateWaterQuad(int                          x,
@@ -202,8 +202,8 @@ void TerrainManager::GenerateWaterQuad(int                          x,
         indices.insert(indices.end(),
                        {currentIdx + 0, currentIdx + 2, currentIdx + 1, currentIdx + 1, currentIdx + 2, currentIdx + 3});
         currentIdx += 4;
+        }
     }
-}
 
 void TerrainManager::GenerateWaterQuad(const TreeNode&              nodeTree,
                                        std::vector<GeometryVertex>& vertices,
