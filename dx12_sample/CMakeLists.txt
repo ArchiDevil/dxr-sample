@@ -8,14 +8,18 @@ set(SRC
     SceneManager.cpp
     SceneManager.h
     stdafx.h
-    
+)
+
+set(TERRAIN_SRC
     worldgen/Noise.cpp
     worldgen/Noise.h
+    worldgen/TerrainManager.cpp
+    worldgen/TerrainManager.h
     worldgen/WorldGen.cpp
     worldgen/WorldGen.h
 )
 
-add_executable(dxr_sample ${SRC})
+add_executable(dxr_sample ${SRC} ${TERRAIN_SRC})
 
 target_link_libraries(dxr_sample
     d3dx12

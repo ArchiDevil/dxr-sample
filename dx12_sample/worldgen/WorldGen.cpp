@@ -7,14 +7,16 @@ double Length(double x, double y)
     return sqrt(x * x + y * y);
 }
 
-constexpr std::size_t GetIndex(std::size_t x, std::size_t y, std::size_t sideSize)
+constexpr double DLength(double x, double y)
 {
-    return x * sideSize + y;
+    x -= 1.0;
+    y -= 1.0;
+    return x * x + y * y;
 }
 
 constexpr double GetAmplitude(int octaves, double persistance)
 {
-    double result    = 0.0;
+    double result = 0.0;
 
     double amplitude = 1.0;
     for (auto octave = 0; octave < octaves; ++octave)
@@ -32,7 +34,12 @@ WorldGen::WorldGen(std::size_t sideSize)
     _heightMap.resize(sideSize * sideSize);
 }
 
-void WorldGen::GenerateHeightMap(int octaves, double persistance, double frequency, double lacunarity)
+void WorldGen::GenerateHeightMap(int    octaves,
+                                 double persistance,
+                                 double frequency,
+                                 double lacunarity,
+                                 double offset,
+                                 double multiplier)
 {
     _noise.SetOctaves(octaves);
     _noise.SetPersistence(persistance);
@@ -50,19 +57,19 @@ void WorldGen::GenerateHeightMap(int octaves, double persistance, double frequen
             value += amplitude;
             value /= amplitude * 2.0;
 
-            double length2 = Length(i, j) > 1.0 ? 1.0 : Length(i, j) * Length(i, j);
-            double curMult = 0.05 + 0.95 * length2;
-            value *= (1 - curMult * curMult);
+            // calculate a length from the center of the map
+            double length2 = Length(i, j) > 1.0 ? 1.0 : DLength(i, j);
+
+            // adjust value according to the length from the center
+            value *= (1 - length2 * length2);
+
+            // adjust contast
+            value = std::pow(value, 2.2);
 
             std::size_t cellX = (std::size_t)(i * _sideSize / 2);
             std::size_t cellY = (std::size_t)(j * _sideSize / 2);
 
-            _heightMap[GetIndex(cellX, cellY, _sideSize)] = 20 + value * 125.0;
+            _heightMap[GetIndex(cellX, cellY, _sideSize)] = offset + value * multiplier;
         }
     }
-}
-
-uint8_t WorldGen::GetHeight(std::size_t x, std::size_t y)
-{
-    return _heightMap[GetIndex(x, y, _sideSize)];
 }

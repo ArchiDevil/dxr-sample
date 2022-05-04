@@ -183,13 +183,15 @@ double Noise::GetNoise(double xin, double yin, double zin)
 
 double Noise::GetNoise(double xin, double yin)
 {
+    static constexpr double sqrt3 = 1.7320508075688772;
+
     double n0, n1, n2;  // Noise contributions from the three corners
     // Skew the input space to determine which simplex cell we're in
-    const double F2 = 0.5 * (sqrt(3.0) - 1.0);
+    const double F2 = 0.5 * (sqrt3 - 1.0);
     double       s  = (xin + yin) * F2;  // Hairy factor for 2D
-    int          i  = (int)floor(xin + s);
-    int          j  = (int)floor(yin + s);
-    const double G2 = (3.0 - sqrt(3.0)) / 6.0;
+    int          i  = (int)(xin + s);
+    int          j  = (int)(yin + s);
+    const double G2 = (3.0 - sqrt3) / 6.0;
     double       t  = (i + j) * G2;
     double       X0 = i - t;  // Unskew the cell origin back to (x,y) space
     double       Y0 = j - t;

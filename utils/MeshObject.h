@@ -7,10 +7,10 @@
 class MeshObject
 {
 public:
-    MeshObject(const std::vector<uint8_t>&       vertex_data,
-               size_t                            stride,
-               const std::vector<uint32_t>&      index_data,
-               ComPtr<ID3D12Device5>             pDevice,
+    MeshObject(std::span<const uint8_t>          vertexData,
+               std::size_t                       stride,
+               std::span<const uint32_t>         indexData,
+               ComPtr<ID3D12Device5>             device,
                bool                              createBlas      = true,
                std::function<void(CommandList&)> cmdListExecutor = {});
 

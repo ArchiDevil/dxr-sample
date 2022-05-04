@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "DX12Sample.h"
+#include "worldgen/TerrainManager.h"
 
 #include <utils/CommandList.h>
 #include <utils/FeaturesCollector.h>
@@ -49,7 +50,6 @@ void DX12Sample::OnInit()
 
     _sceneManager = std::make_unique<SceneManager>(_deviceResources, m_width, m_height, _cmdLineOpts, _RTManager.get());
 
-    CreateObjects();
 
     D3D12_DESCRIPTOR_HEAP_DESC imguiHeapDesc = {};
     imguiHeapDesc.NumDescriptors = 32;
@@ -77,6 +77,13 @@ void DX12Sample::OnInit()
     ImGui_ImplDX12_Init(_deviceResources->GetDevice().Get(), 2, DXGI_FORMAT_R8G8B8A8_UNORM, _uiDescriptors.Get(),
                         _uiDescriptors->GetCPUDescriptorHandleForHeapStart(),
                         _uiDescriptors->GetGPUDescriptorHandleForHeapStart());
+
+    _sceneManager->GetCamera().SetRadius(300.0f);
+    _sceneManager->GetCamera().SetCenter(
+        {mapSize / 2.0f, mapSize / 2.0f, (float)_worldGen.GetHeight(mapSize / 2, mapSize / 2)});
+    _mouseSceneTracker.camPosition = _sceneManager->GetCamera().GetCameraPosition();
+
+    CreateObjects();
 }
 
 void DX12Sample::OnUpdate()
@@ -103,13 +110,7 @@ void DX12Sample::OnUpdate()
         elapsedFrames = 0;
         elapsedTime -= 1.0;
     }
-
-    if (!_mouseSceneTracker.lBtnPressed)
-    {
-        _sceneManager->GetCamera().SetRotation(_sceneManager->GetCamera().GetCameraPosition().rotation + dt * 10.0f );
-        return;
-    }
-
+    
     float dx = _mouseSceneTracker.camPosition.rotation + _mouseSceneTracker.pressedPoint.x - _mouseSceneTracker.currPoint.x;
     float dy = _mouseSceneTracker.camPosition.inclination - _mouseSceneTracker.pressedPoint.y + _mouseSceneTracker.currPoint.y;
 
@@ -140,7 +141,7 @@ void DX12Sample::OnRender()
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         static ImVec4 ambientColor{ 0.1f, 0.1f, 0.1f, 1.0f };
         static ImVec4 lightColor{1.0f, 1.0f, 1.0f, 1.0f};
-        static ImVec4 lightDir{ 0.75f, -1.0f, 0.2f, 1.0f };
+        static ImVec4 lightDir{ 0.0f, -0.154f, -0.148f, 1.0f };
 
         ImVec2 window_pos;
         window_pos.x = viewport->WorkPos.x + padding;
@@ -313,16 +314,6 @@ void DX12Sample::UpdateWorldTexture()
                                                                          &uploadDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
                                                                          nullptr, IID_PPV_ARGS(&uploadTexture)));
 
-    std::map<uint8_t, XMUINT3> colorsLut = {
-        {40, XMUINT3{63, 72, 204}},     // deep water
-        {50, XMUINT3{0, 162, 232}},     // shallow water
-        {55, XMUINT3{255, 242, 0}},     // sand
-        {80, XMUINT3{181, 230, 29}},    // grass
-        {95, XMUINT3{34, 177, 76}},     // forest
-        {105, XMUINT3{127, 127, 127}},  // rock
-        {255, XMUINT3{255, 255, 255}}   // snow
-    };
-
     uint8_t* data = nullptr;
     ThrowIfFailed(uploadTexture->Map(0, nullptr, (void**)&data));
     for (int i = 0; i < mapSize; ++i)
@@ -334,7 +325,7 @@ void DX12Sample::UpdateWorldTexture()
             std::size_t columnOffset = i * pixelSize;
             std::size_t pixelOffset  = rowOffset + columnOffset;
 
-            auto color            = colorsLut.lower_bound(height)->second;
+            auto color            = _colorsLut.lower_bound(height)->second;
             data[pixelOffset + 0] = color.x;
             data[pixelOffset + 1] = color.y;
             data[pixelOffset + 2] = color.z;
@@ -515,14 +506,106 @@ ComPtr<IDXGISwapChain3> DX12Sample::CreateSwapChain(ComPtr<IDXGIFactory4>      f
 
 void DX12Sample::CreateObjects()
 {
-    auto cube = _sceneManager->CreateCube();
-    SpecularMaterial& specular = std::get<SpecularMaterial>(cube->GetMaterial().GetParams());
-    specular.reflectance = 350.0f;
-    specular.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
-    cube->Position({2.0, 0.0, 0.0});
+    auto lut = _colorsLut;
+    // we do not need to gen colors for water
+    lut.erase(40);
+    lut.erase(50);
+    lut[40] = XMUINT3{ 127, 127, 127 }; // rocky bottom
 
-    auto emptyCube = _sceneManager->CreateEmptyCube();
-    DiffuseMaterial& diffuse   = std::get<DiffuseMaterial>(emptyCube->GetMaterial().GetParams());
-    diffuse.color = {float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100, float(rand() % 50 + 50.0f) / 100};
-    emptyCube->Rotation(0.5f);
+    TerrainManager tm{_worldGen, lut, 128};
+    for (auto& chunk : tm.GetChunks())
+    {
+        auto obj = _sceneManager->CreateCustomObject(chunk.vertices, chunk.indices, Material{MaterialType::Diffuse});
+        obj->Position({(float)chunk.absX, (float)chunk.absY, 0.0});
+    }
+}
+
+void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int islandSize)
+{
+    auto calcNorm = [&vertices](uint32_t i1, uint32_t i2, uint32_t i3) {
+        GeometryVertex& vertex1 = vertices[i1];
+        const float3& position = vertex1.position;
+        DirectX::FXMVECTOR pos1 = DirectX::FXMVECTOR({ position.x, position.y, position.z });
+
+        GeometryVertex& vertex2 = vertices[i2];
+        const float3& position2 = vertex2.position;
+        DirectX::FXMVECTOR pos2 = DirectX::FXMVECTOR({ position2.x, position2.y, position2.z });
+
+        GeometryVertex& vertex3 = vertices[i3];
+        const float3& position3 = vertex3.position;
+        DirectX::FXMVECTOR pos3 = DirectX::FXMVECTOR({ position3.x, position3.y, position3.z });
+
+        XMVECTOR vector1 = DirectX::XMVectorSubtract(pos2, pos1);
+        XMVECTOR vector2 = DirectX::XMVectorSubtract(pos3, pos1);
+
+        XMVECTOR cross = DirectX::XMVector3Cross(vector1, vector2);
+        DirectX::XMVECTOR norm = DirectX::XMVector3Normalize(cross);
+
+        //XMVECTOR norm1  = DirectX::XMLoadFloat3(&vertex1.normal);
+        //if (!DirectX::XMVector3Equal(norm, norm1) &&
+        //    !DirectX::XMVector3Equal(DirectX::XMVector3Length(norm1), DirectX::XMVectorZero()))
+        //{
+        //    norm = DirectX::XMVectorAdd(norm1, norm);
+        //    norm = DirectX::XMVector3Normalize(norm);
+        //}
+        DirectX::XMStoreFloat3(&vertex1.normal, norm);
+        DirectX::XMStoreFloat3(&vertex2.normal, norm);
+        DirectX::XMStoreFloat3(&vertex3.normal, norm);
+    };
+
+    if (vertices.size() > index + islandSize + 2)
+    {
+        calcNorm(index, index + 1, index + islandSize + 1);
+        //calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
+    }
+}
+
+void DX12Sample::CreateIsland()
+{
+    int islandSize = _worldGen.GetSideSize() - 1;
+
+    float multi = 300.0f;
+
+    std::vector<GeometryVertex> vertices;
+    vertices.reserve(islandSize * islandSize);
+
+    float islandWidth = 6.0f;
+
+    for (int y = 0; y <= islandSize; y++)
+    {
+        for (int x = 0; x <= islandSize; x++)
+        {
+            int height = _worldGen.GetHeight(x, y);
+
+            const float nz     = height * 1.0f / multi;
+            const float nx     = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
+            const float ny     = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
+            float3      normal = {0.0f, 0.0f, 0.0f};
+            float3      color  = {0.5f, 0.5f, 0.5f};
+            vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, color});
+        }
+    }
+
+    int                   colCnt = 0;
+    std::vector<uint32_t> indices;
+    for (uint32_t i = 0; i < islandSize * (islandSize - 1); ++i)
+    {
+        colCnt++;
+        if (colCnt > islandSize)
+        {
+            colCnt = 0;
+            continue;
+        }
+
+        CalculateNormal(vertices, i, islandSize);
+        indices.emplace_back(i);
+        indices.emplace_back(i + 1);
+        indices.emplace_back(i + islandSize + 1);
+
+        indices.emplace_back(i + islandSize + 2);
+        indices.emplace_back(i + islandSize + 1);
+        indices.emplace_back(i + 1);
+    }
+
+    _sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
 }

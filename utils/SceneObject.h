@@ -104,6 +104,6 @@ private:
     ComPtr<ID3D12Resource> _blas           = nullptr;
     ComPtr<ID3D12Device>   _device         = nullptr;
 
-    bool        _transformDirty = false;
+    bool        _transformDirty = true;
     std::size_t _descriptorIdx;
 };

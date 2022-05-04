@@ -19,6 +19,7 @@ SceneObject::SceneObject(std::shared_ptr<MeshObject> meshObject,
 
     CreateBufferSRVs(heap);
     CreateCBV();
+    CalculateWorldMatrix();
 }
 
 bool SceneObject::IsDirty() const
@@ -154,13 +155,11 @@ void SceneObject::CalculateWorldMatrix()
     {
         SpecularMaterial mtl   = std::get<SpecularMaterial>(_material.GetParams());
         auto             color = mtl.color;
-        params.color           = XMVECTOR{color.x, color.y, color.z, 1.0f};
         params.reflectance     = mtl.reflectance;
     }
     else if (_material.GetType() == MaterialType::Diffuse)
     {
-        auto color   = std::get<DiffuseMaterial>(_material.GetParams()).color;
-        params.color = XMVECTOR{color.x, color.y, color.z, 1.0f};
+        // no params yet
     }
 
     ModelParams* bufPtr = nullptr;

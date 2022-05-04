@@ -40,7 +40,7 @@ void RayGenShader()
     uint3 launchIndex = DispatchRaysIndex();
     RayDesc desc;
     desc.TMin = 0.01f;
-    desc.TMax = 1000.0f;
+    desc.TMax = 3000.0f;
     GenerateCameraRay(launchIndex.xy, desc.Origin, desc.Direction);
 
     TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, desc, payload);
@@ -91,15 +91,18 @@ GeometryVertex LoadAndInterpolate(uint3 indices, in BuiltInTriangleIntersectionA
     GeometryVertex output;
     output.position = Interpolate(v1.position, v2.position, v3.position, barycentrics);
     output.normal = Interpolate(v1.normal, v2.normal, v3.normal, barycentrics);
-    output.binormal = Interpolate(v1.binormal, v2.binormal, v3.binormal, barycentrics);
-    output.tangent = Interpolate(v1.tangent, v2.tangent, v3.tangent, barycentrics);
-    output.uv = Interpolate(v1.uv, v2.uv, v3.uv, barycentrics);
+    output.color = v1.color;
     return output;
 }
 
 float3 PhongDiffuse(float NoL, float3 lightColor, float3 albedo)
 {
     return lightColor * albedo * saturate(NoL); // / 3.14159265;
+}
+
+float3 PhongSpecular(float NoV, float3 lightColor, float reflectance)
+{
+    return lightColor * pow(saturate(NoV), reflectance);
 }
 
 [shader("closesthit")]
@@ -110,11 +113,12 @@ void SpecularShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionA
     float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
     float3 l = -normalize(lightParams.direction.xyz);
     float NoL = dot(n, l);
-    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, modelParams.color.xyz);
+    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, v.color);
 
     float3 currentPos = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
     float3 r = reflect(normalize(currentPos - sceneParams.viewPos.xyz), n);
-    float3 specularColor = lightParams.color.xyz * pow(saturate(dot(r, l)), modelParams.reflectance);
+    float NoV = dot(r, l);
+    float3 specularColor = PhongSpecular(NoV, lightParams.color.xyz, modelParams.reflectance);
 
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
@@ -129,8 +133,7 @@ void DiffuseShader(inout RayPayload rayPayload, in BuiltInTriangleIntersectionAt
     float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
     float3 l = -normalize(lightParams.direction.xyz);
     float NoL = dot(n, l);
-    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, modelParams.color.xyz);
-
+    float3 diffuseColor = PhongDiffuse(NoL, lightParams.color.xyz, v.color);
     float3 ambientColor = sceneParams.ambientColor.xyz;
 
     rayPayload.color = float4(diffuseColor + ambientColor, 1.0);

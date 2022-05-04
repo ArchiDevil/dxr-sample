@@ -28,7 +28,6 @@ struct LightParams
 
 struct ModelParams
 {
-    float4   color;
     float4x4 worldMatrix;
     float reflectance;
 };
@@ -37,7 +36,5 @@ struct GeometryVertex
 {
     float3 position;
     float3 normal;
-    float3 binormal;
-    float3 tangent;
-    float2 uv;
+    float3 color;
 };

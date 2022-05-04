@@ -20,12 +20,12 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     , _rtManager(rtManager)
     , _mainCamera(Graphics::ProjectionType::Perspective,
                   0.1f,
-                  1000.f,
+                  5000.f,
                   5.0f * pi / 18.0f,
                   static_cast<float>(screenWidth),
                   static_cast<float>(screenHeight))
     , _meshManager(_deviceResources->GetDevice())
-    , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128)
+    , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 512)
     , _cmdList(CommandListType::Direct, _deviceResources->GetDevice())
 {
     assert(rtManager);
@@ -33,7 +33,8 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     _cmdList.Close();
 
     _mainCamera.SetCenter({0.0f, 0.0f, 0.0f});
-    _mainCamera.SetRadius(5.0f);
+    _mainCamera.SetRadius(10.0f);
+    _mainCamera.SetRotation(45.0f);
     _mainCamera.SetInclination(20.0f);
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
@@ -468,6 +469,12 @@ std::shared_ptr<SceneObject> SceneManager::CreateCube()
     );
 }
 
+std::shared_ptr<SceneObject> SceneManager::CreateAxis()
+{
+    return CreateObject(_meshManager.CreateAxes([this](CommandList& cmdList) { ExecuteCommandList(cmdList); }),
+                        Material{MaterialType::Diffuse});
+}
+
 std::shared_ptr<SceneObject> SceneManager::CreateCustomObject(const std::vector<GeometryVertex>& vertices,
                                                               const std::vector<uint32_t>&       indices,
                                                               Material                           material)
@@ -502,9 +509,9 @@ void SceneManager::UpdateObjects()
     ((LightParams*)sceneData)->direction = DirectX::XMVECTOR({ _lightDir[0], _lightDir[1], _lightDir[2], 1.0});
     ((LightParams*)sceneData)->color     = DirectX::XMVECTOR({_lightColors[0], _lightColors[1], _lightColors[2], 1.0});
 
-    _sceneObjects.back()->Rotation(_sceneObjects.back()->Rotation() + 0.01f);
+    bool anyDirty = std::ranges::any_of(_sceneObjects.cbegin(), _sceneObjects.cend(),
+        [](const SceneObjectPtr& object) { return object->IsDirty(); });
 
-    bool anyDirty = std::ranges::any_of(_sceneObjects, [](const SceneObjectPtr& object) { return object->IsDirty(); });
     if (anyDirty)
     {
         BuildTLAS();
