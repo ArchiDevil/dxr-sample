@@ -144,20 +144,28 @@ void DiffuseShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttri
     payload.hitDistance = min(payload.hitDistance, RayTCurrent());
 }
 
+float F_Shlick(float NoV, float ior)
+{
+    float k = (1.0 - ior) / (1.0 + ior);
+    float R0 = k * k;
+    return R0 + (1 - R0) * pow(1 - NoV, 5.0);
+}
+
 [shader("closesthit")]
 void WaterShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     GeometryVertex v = LoadAndInterpolate(LoadIndices(PrimitiveIndex()), attr);
     float3 n = normalize(mul(float4(v.normal, 0.0), transpose(modelParams.worldMatrix))).xyz;
+    float3 p = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
 
     RayDesc desc;
-    desc.TMin = 0.01f;
-    desc.TMax = 100.0f;
-    desc.Origin = mul(float4(v.position, 1.0), transpose(modelParams.worldMatrix)).xyz;
-    
+    desc.TMin   = 0.01f;
+    desc.TMax   = 100.0f;
+    desc.Origin = p;
+
     // 1.0 is the air refractivity
     desc.Direction = refract(WorldRayDirection(), n, 1.0 / modelParams.reflectance);
-    
+
     if (length(desc.Direction) < 0.1)
     {
         payload.color = float3(0.0, 0.0, 0.0);
@@ -165,10 +173,22 @@ void WaterShader(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
     }
 
     RayPayload waterPayload;
-    waterPayload.color = float3(1.0, 0.0, 0.0);
+    waterPayload.color       = float3(1.0, 0.0, 0.0);
     waterPayload.hitDistance = 3100.0;
     TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, desc, waterPayload);
 
     float hitDistance = pow(saturate(waterPayload.hitDistance / 20.0), 2.0);
-    payload.color = lerp(waterPayload.color.xyz, float3(0.0, 0.45, 0.69), hitDistance);
+    float3 refractionColor = lerp(waterPayload.color.xyz, float3(0.0, 0.45, 0.69), hitDistance);
+
+    desc.TMax      = 3100.0f;
+    desc.Direction = reflect(WorldRayDirection(), n);
+
+    RayPayload reflectionPayload;
+    reflectionPayload.color = float3(1.0, 0.0, 0.0);
+    TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, desc, reflectionPayload);
+
+    float NoV    = saturate(dot(n, -WorldRayDirection()));
+    float amount = F_Shlick(NoV, modelParams.reflectance);
+
+    payload.color = lerp(refractionColor, reflectionPayload.color, amount);
 }

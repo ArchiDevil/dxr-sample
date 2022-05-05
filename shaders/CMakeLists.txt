@@ -11,7 +11,7 @@ set_source_files_properties(Sample.hlsl
         VS_SHADER_MODEL "6.3"
         VS_SHADER_TYPE "Library"
         VS_SHADER_ENTRYPOINT ""
-        VS_SHADER_FLAGS "/Zpr" # for row-major matrices
+        VS_SHADER_FLAGS "/Zpr /WX" # for row-major matrices
 )
 
 add_custom_command(TARGET shaders POST_BUILD
