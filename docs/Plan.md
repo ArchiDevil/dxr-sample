@@ -16,7 +16,7 @@
         - [x] Use correct view/projection matrices
         - [x] Put these bindings to the raygen shader (using CBV): view position, direction
         - [x] Start using camera object
-- [ ] Generate a simplest scene and draw it
+- [x] Generate a simplest scene and draw it
     - [x] Start using multiple objects
     - [x] Create something like objects manager
     - [x] Start using local root signatures and bindings
@@ -27,12 +27,22 @@
     - [x] Generate a geometry of an island using Perlin noise
         - [x] Generate cubes for a noise data
     - [x] Generate a geometry for water
-- [ ] Add a separate pass using a convenient rendering (like a depth pass)
+- [x] Add reflections
+- [ ] Add flora
+    - [ ] Generate bushes
+    - [ ] Generate a tree
+    - [ ] Place flora in the world using a random values or the noise value
+- [ ] Add clouds
+    - [ ] Generate clouds using a noise
+    - [ ] Make clouds transparent
+    - [ ] Animate them
+- [ ] Add sun & sky
+    - [ ] Add a sun object on the sky
+    - [ ] Add a sky with a Relay scattering algorithm
 - [ ] Add shadows & AO
-    * Use results from depth pass
-- [ ] Add some action to scene
-- [ ] Add reflection
-- [ ] Add transparency & refraction
+    - [ ] Add depth prepass
+    - [ ] Generate rays from each point to the light position and check collision
+    - [ ] For AO generate multiple short rays in random directions
 
 ## Other tasks
 
