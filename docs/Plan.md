@@ -50,8 +50,8 @@
 - [ ] Implement procedural generation of simple objects: -- EASY
     - [ ] Sphere
     - [ ] Torus
+- [x] Implement heap resizing -- EASY
 - [ ] Implement WASD camera -- EASY
-- [ ] Implement heap resizing -- EASY
 - [ ] Implement scene tree with configurable parameters -- MEDIUM
 - [ ] Implement in-app profiler (configurable) to measure: -- MEDIUM
     - [ ] TLAS building time

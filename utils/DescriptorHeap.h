@@ -29,17 +29,22 @@ public:
     std::size_t GetNumDescriptors() const;
 
     // Returns raw resource
-    ComPtr<ID3D12DescriptorHeap> GetResource() const;
+    ComPtr<ID3D12DescriptorHeap> GetResource();
 
 private:
+    bool IsDirty() const;
+    void Mirror();
+
     void                         Reallocate(std::size_t newSize);
-    ComPtr<ID3D12DescriptorHeap> CreateHeap(std::size_t size);
+    ComPtr<ID3D12DescriptorHeap> CreateHeap(std::size_t size, bool visible);
 
     ComPtr<ID3D12Device>         _device;
-    ComPtr<ID3D12DescriptorHeap> _heap;
+    ComPtr<ID3D12DescriptorHeap> _gpuHeap;
+    ComPtr<ID3D12DescriptorHeap> _cpuHeap;
 
     std::size_t _capacity;
-    std::size_t _size = 0;
+    std::size_t _size  = 0;
+    bool        _dirty = true;
 
     const std::size_t          _incrementSize;
     D3D12_DESCRIPTOR_HEAP_TYPE _type;
