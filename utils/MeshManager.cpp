@@ -195,20 +195,22 @@ std::shared_ptr<MeshObject> MeshManager::CreateAxes(std::function<void(CommandLi
 
     const float                              axisW = 0.04f;
     const float                              axisL = 4.0f;
-    float3                                   color = { 0.2f, 0.2f, 0.2f };
+    float3                                   colorX = { 0.8f, 0.2f, 0.2f };
+    float3                                   colorY = { 0.2f, 0.9f, 0.2f };
+    float3                                   colorZ = { 0.2f, 0.2f, 0.8f };
     static const std::vector<GeometryVertex> vertices = {
         //x/z
-        {{0.0f, axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
-        {{0.0f, -axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
-        {{axisL, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
+        {{0.0f, axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, colorX},
+        {{0.0f, -axisW, 0.0f}, {0.0f, 1.0f, 0.0f}, colorX},
+        {{axisL, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, colorX},
 
         //y
-        {{axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
-        {{-axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
-        {{0.0f, axisL, 0.0f}, {0.0f, 1.0f, 0.0f}, color},
+        {{axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, colorY},
+        {{-axisW, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, colorY},
+        {{0.0f, axisL, 0.0f}, {0.0f, 1.0f, 0.0f}, colorY},
 
         //z
-        {{0.0f, 0.0f, axisL}, {0.0f, 1.0f, 0.0f}, color}
+        {{0.0f, 0.0f, axisL}, {0.0f, 1.0f, 0.0f}, colorZ}
     };
 
     static const std::vector<uint32_t> indices = {// x - axis
@@ -216,7 +218,7 @@ std::shared_ptr<MeshObject> MeshManager::CreateAxes(std::function<void(CommandLi
                                                   // y
                                                   3, 4, 5, 5, 4, 3,
                                                   // z
-                                                  0, 6, 1, 1, 6, 0,
+                                                  6, 1, 0, 6, 0, 1,
     };
 
     _axes = std::make_shared<MeshObject>(
