@@ -21,10 +21,12 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     , _meshManager(_deviceResources->GetDevice())
     , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 512)
     , _cmdList(CommandListType::Direct, _deviceResources->GetDevice())
+    , _depthPassCmdList(CommandListType::Direct, _deviceResources->GetDevice())
 {
     assert(rtManager);
 
     _cmdList.Close();
+    _depthPassCmdList.Close();
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
 
@@ -34,7 +36,6 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     CreateRaytracingPSO();
 
     CreateRayGenMissTables();
-    CreateDepthMap();
 }
 
 SceneManager::~SceneManager()
@@ -49,6 +50,10 @@ void SceneManager::DrawScene()
     std::vector<ID3D12CommandList*> cmdListArray;
     cmdListArray.reserve(16); // just to avoid any allocations
     UpdateObjects();
+
+    PopulateDepthPassCommandList();
+    cmdListArray.push_back(_depthPassCmdList.GetInternal().Get());
+
     PopulateCommandList();
     cmdListArray.push_back(_cmdList.GetInternal().Get());
 
@@ -138,6 +143,20 @@ void SceneManager::CreateRenderTargets()
     uavDesc.Format        = DXGI_FORMAT_R8G8B8A8_UNORM;
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
     _deviceResources->GetDevice()->CreateUnorderedAccessView(_raytracingOutput.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+    _shadowDepth = _rtManager->CreateDepthStencil(_screenWidth, _screenHeight, DXGI_FORMAT_R24G8_TYPELESS,
+                                                  DXGI_FORMAT_D24_UNORM_S8_UINT, L"DepthStencil");
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC dsDesc = {};
+        dsDesc.Format                          = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        dsDesc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        dsDesc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
+        dsDesc.Texture2D.MipLevels             = 1;
+        dsDesc.Texture2D.MostDetailedMip       = 0;
+
+        auto address = _descriptorHeap.GetFreeCPUAddress();
+        _deviceResources->GetDevice()->CreateShaderResourceView(_shadowDepth->_texture.Get(), &dsDesc, address.handle);
+    }
 }
 
 void SceneManager::CreateRayGenMissTables()
@@ -190,6 +209,41 @@ void SceneManager::CreateHitTable()
 
         _hitTable->AddEntry(i, ShaderEntry{shaderIdentifier, data.data(), data.size() * sizeof(D3D12_GPU_VIRTUAL_ADDRESS)});
     }
+}
+
+void SceneManager::PopulateDepthPassCommandList()
+{
+    _depthPassCmdList.Reset();
+    ComPtr<ID3D12GraphicsCommandList> pCmdList = _depthPassCmdList.GetInternal();
+
+    pCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    D3D12_RECT scissor = {0, 0, (LONG)_screenWidth, (LONG)_screenHeight};
+    pCmdList->RSSetScissorRects(1, &scissor);
+
+    D3D12_VIEWPORT viewport = {0, 0, (float)_screenWidth, (float)_screenHeight, 0.0f, 1.0f};
+    pCmdList->RSSetViewports(1, &viewport);
+
+    {
+        auto transition = CD3DX12_RESOURCE_BARRIER::Transition(
+            _shadowDepth->_texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        pCmdList->ResourceBarrier(1, &transition);
+    }
+
+    _rtManager->ClearDepthStencil(*_shadowDepth, _depthPassCmdList);
+    RenderTarget* rts[8] = {};
+    _rtManager->BindRenderTargets(rts, _shadowDepth.get(), _depthPassCmdList);
+
+    pCmdList->SetGraphicsRootSignature(_depthRootSignature.GetInternal().Get());
+    pCmdList->SetGraphicsRootConstantBufferView(1, _cbvDepthFrameParams->GetGPUVirtualAddress());
+
+    for (size_t i = 0; i < _sceneObjects.size(); ++i)
+    {
+        pCmdList->SetGraphicsRootConstantBufferView(0, _sceneObjects[i]->GetConstantBuffer()->GetGPUVirtualAddress());
+        _sceneObjects[i]->Draw(pCmdList);
+    }
+
+    _depthPassCmdList->Close();
 }
 
 void SceneManager::PopulateCommandList()
@@ -414,6 +468,14 @@ void SceneManager::CreateRaytracingPSO()
     ThrowIfFailed(_deviceResources->GetDevice()->CreateStateObject(&pDesc, IID_PPV_ARGS(&_raytracingState)));
 }
 
+void SceneManager::CreateDepthPassPSO()
+{
+    std::vector<D3D12_STATE_SUBOBJECT> subobjects;
+
+    D3D12_SHADER_BYTECODE bytecode = {};
+    std::vector<char>     bytes    = readBytecode("Shadows.cso");
+}
+
 void SceneManager::CreateRootSignatures()
 {
     _globalRootSignature.Init(4, 0);
@@ -427,6 +489,11 @@ void SceneManager::CreateRootSignatures()
     _globalRootSignature[3].InitAsCBV(1);
     _globalRootSignature.Finalize(_deviceResources->GetDevice());
 
+    _depthRootSignature.Init(2, 0);
+    _depthRootSignature[0].InitAsCBV(0);
+    _depthRootSignature[1].InitAsCBV(1);
+    _depthRootSignature.Finalize(_deviceResources->GetDevice(), D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
     _localRootSignature.Init(2, 0);
     _localRootSignature[0].InitAsCBV(2);
     _localRootSignature[1].InitAsDescriptorsTable(1); // VB/IB views
@@ -437,40 +504,8 @@ void SceneManager::CreateRootSignatures()
 void SceneManager::CreateFrameResources()
 {
     CreateConstantBuffer(sizeof(ViewParams), &_viewParams, D3D12_RESOURCE_STATE_GENERIC_READ);
+    CreateConstantBuffer(sizeof(ViewParams), &_cbvDepthFrameParams, D3D12_RESOURCE_STATE_GENERIC_READ);
     CreateConstantBuffer(sizeof(LightParams), &_lightParams, D3D12_RESOURCE_STATE_GENERIC_READ);
-}
-
-void SceneManager::CreateDepthMap()
-{
-    const DXGI_FORMAT descs_format{DXGI_FORMAT_R16G16B16A16_UNORM};
-
-    D3D12_RESOURCE_DESC depthMapDesc = {};
-    depthMapDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    depthMapDesc.Format              = descs_format;
-    depthMapDesc.Flags               = D3D12_RESOURCE_FLAG_NONE;
-    depthMapDesc.SampleDesc.Count    = 1;
-    depthMapDesc.DepthOrArraySize    = 1;
-    depthMapDesc.MipLevels           = 1;
-    depthMapDesc.Width               = _screenWidth;
-    depthMapDesc.Height              = _screenHeight;
-    depthMapDesc.Alignment           = 0;
-
-    D3D12_HEAP_PROPERTIES defaultHeapProps = {D3D12_HEAP_TYPE_DEFAULT};
-    ThrowIfFailed(_deviceResources->GetDevice()->CreateCommittedResource(
-        &defaultHeapProps, D3D12_HEAP_FLAG_NONE, &depthMapDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
-        IID_PPV_ARGS(&_depthMapTexture)));
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Format                          = descs_format;
-    srvDesc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Texture2D.MipLevels             = 1;
-
-    auto address = _descriptorHeap.GetFreeCPUAddress();
-    _deviceResources->GetDevice()->CreateShaderResourceView(_depthMapTexture.Get(), &srvDesc, address.handle);
-
-    /// CommandList cmdList{CommandListType::Direct, _deviceResources->GetDevice()};
-
 }
 
 std::shared_ptr<SceneObject> SceneManager::CreateObject(std::shared_ptr<MeshObject> meshObject, Material material)

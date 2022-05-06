@@ -22,6 +22,22 @@ SceneObject::SceneObject(std::shared_ptr<MeshObject> meshObject,
     CalculateWorldMatrix();
 }
 
+void SceneObject::Draw(const ComPtr<ID3D12GraphicsCommandList>& pCmdList)
+{
+    pCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    pCmdList->IASetVertexBuffers(0, 1, &_meshObject->VertexBufferView());
+
+    if (_meshObject->IndexBuffer())
+    {
+        pCmdList->IASetIndexBuffer(&_meshObject->IndexBufferView());
+        pCmdList->DrawIndexedInstanced((UINT)_meshObject->IndicesCount(), 1, 0, 0, 0);
+    }
+    else
+    {
+        pCmdList->DrawInstanced((UINT)_meshObject->VerticesCount(), 1, 0, 0);
+    }
+}
+
 bool SceneObject::IsDirty() const
 {
     return _transformDirty;

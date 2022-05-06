@@ -77,6 +77,8 @@ public:
                 ComPtr<ID3D12Device>        pDevice,
                 Material                    material = Material(MaterialType::Diffuse));
 
+    void Draw(const ComPtr<ID3D12GraphicsCommandList>& pCmdList);
+
     DirectX::XMFLOAT3 Position() const;
     void              Position(DirectX::XMFLOAT3 val);
 

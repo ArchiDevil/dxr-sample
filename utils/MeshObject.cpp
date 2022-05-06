@@ -47,6 +47,11 @@ MeshObject::MeshObject(std::span<const uint8_t>          vertexData,
     std::memcpy(bufPtr, vertexData.data(), vertexData.size());
     _vertexBuffer->Unmap(0, nullptr);
 
+    // creating view describing how to use vertex buffer for GPU
+    _vertexBufferView.BufferLocation = _vertexBuffer->GetGPUVirtualAddress();
+    _vertexBufferView.SizeInBytes    = (UINT)vertexData.size();
+    _vertexBufferView.StrideInBytes  = (UINT)stride;
+
     if (!indexData.empty())
     {
         D3D12_RESOURCE_DESC indexBufferDesc = {};
@@ -64,6 +69,11 @@ MeshObject::MeshObject(std::span<const uint8_t>          vertexData,
         ThrowIfFailed(_indexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&bufPtr)));
         std::memcpy(bufPtr, indexData.data(), indexData.size() * sizeof(uint32_t));
         _indexBuffer->Unmap(0, nullptr);
+
+        // creating view describing how to use vertex buffer for GPU
+        _indexBufferView.BufferLocation = _indexBuffer->GetGPUVirtualAddress();
+        _indexBufferView.SizeInBytes    = (UINT)(indexData.size() * sizeof(uint32_t));
+        _indexBufferView.Format         = DXGI_FORMAT_R32_UINT;
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -126,6 +136,16 @@ const Microsoft::WRL::ComPtr<ID3D12Resource>& MeshObject::VertexBuffer() const
 const Microsoft::WRL::ComPtr<ID3D12Resource>& MeshObject::IndexBuffer() const
 {
     return _indexBuffer;
+}
+
+const D3D12_VERTEX_BUFFER_VIEW& MeshObject::VertexBufferView() const
+{
+    return _vertexBufferView;
+}
+
+const D3D12_INDEX_BUFFER_VIEW& MeshObject::IndexBufferView() const
+{
+    return _indexBufferView;
 }
 
 const ComPtr<ID3D12Resource>& MeshObject::BLAS() const

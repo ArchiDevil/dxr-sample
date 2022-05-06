@@ -62,15 +62,15 @@ public:
 
 private:
     void CreateRaytracingPSO();
+    void CreateDepthPassPSO();
     void CreateRootSignatures();
     void CreateRenderTargets();
     void CreateFrameResources();
 
-    void CreateDepthMap();
-
     void CreateRayGenMissTables();
     void CreateHitTable();
 
+    void PopulateDepthPassCommandList();
     void PopulateCommandList();
     void BuildTLAS();
 
@@ -87,12 +87,15 @@ private:
 
     // command-lists
     CommandList _cmdList;
+    CommandList _depthPassCmdList;
 
     // pipeline states for every object
     ComPtr<ID3D12StateObject> _raytracingState = nullptr;
+    ComPtr<ID3D12StateObject> _grapthicState   = nullptr;
 
     // root signatures
     RootSignature _globalRootSignature;
+    RootSignature _depthRootSignature;
     RootSignature _localRootSignature;
 
     // shader tables
@@ -112,8 +115,12 @@ private:
     ComPtr<ID3D12Resource> _viewParams  = nullptr;
     ComPtr<ID3D12Resource> _lightParams = nullptr;
     ComPtr<ID3D12Resource> _tlas        = nullptr;
+
     // shadows
-    ComPtr<ID3D12Resource> _depthMapTexture = nullptr;
+    ComPtr<ID3D12Resource>        _depthMapTexture = nullptr;
+    std::shared_ptr<DepthStencil> _shadowDepth;
+    ComPtr<ID3D12Resource>        _cbvDepthFrameParams = nullptr;
+    void*                         _cbvDepth            = nullptr;
 
     // other objects
     UINT                          _screenWidth  = 0;

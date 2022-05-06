@@ -17,9 +17,11 @@ public:
     MeshObject(MeshObject&& right) noexcept = default;
     MeshObject& operator=(MeshObject&& right) noexcept = default;
 
-    const ComPtr<ID3D12Resource>& VertexBuffer() const;
-    const ComPtr<ID3D12Resource>& IndexBuffer() const;
-    const ComPtr<ID3D12Resource>& BLAS() const;
+    const ComPtr<ID3D12Resource>&   VertexBuffer() const;
+    const ComPtr<ID3D12Resource>&   IndexBuffer() const;
+    const D3D12_VERTEX_BUFFER_VIEW& VertexBufferView() const;
+    const D3D12_INDEX_BUFFER_VIEW&  IndexBufferView() const;
+    const ComPtr<ID3D12Resource>&   BLAS() const;
 
     size_t VerticesCount() const;
     size_t IndicesCount() const;
@@ -27,6 +29,9 @@ public:
 private:
     size_t _verticesCount = 0;
     size_t _indicesCount  = 0;
+
+    D3D12_VERTEX_BUFFER_VIEW _vertexBufferView = {};
+    D3D12_INDEX_BUFFER_VIEW  _indexBufferView  = {};
 
     ComPtr<ID3D12Resource> _vertexBuffer = nullptr;
     ComPtr<ID3D12Resource> _indexBuffer  = nullptr;
