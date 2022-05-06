@@ -41,6 +41,9 @@ void DX12Sample::OnInit()
     _deviceResources = CreateDeviceResources();
     DumpFeatures();
 
+    GameInput::Initialize(m_hwnd);
+    GameInput::AcquireMouse();
+
     _uiCmdList = std::make_unique<CommandList>(CommandListType::Direct, _deviceResources->GetDevice());
     _uiCmdList->Close();
 
@@ -49,7 +52,6 @@ void DX12Sample::OnInit()
     _deviceResources->SetSwapChainRts(swapChainRts);
 
     _sceneManager = std::make_unique<SceneManager>(_deviceResources, m_width, m_height, _cmdLineOpts, _RTManager.get());
-
 
     D3D12_DESCRIPTOR_HEAP_DESC imguiHeapDesc = {};
     imguiHeapDesc.NumDescriptors = 32;
@@ -78,10 +80,8 @@ void DX12Sample::OnInit()
                         _uiDescriptors->GetCPUDescriptorHandleForHeapStart(),
                         _uiDescriptors->GetGPUDescriptorHandleForHeapStart());
 
-    _sceneManager->GetCamera().SetRadius(300.0f);
-    _sceneManager->GetCamera().SetCenter(
-        {mapSize / 2.0f, mapSize / 2.0f, (float)_worldGen.GetHeight(mapSize / 2, mapSize / 2)});
-    _mouseSceneTracker.camPosition = _sceneManager->GetCamera().GetCameraPosition();
+    _camera = _sceneManager->CreateWASDCamera();
+    _camera->SetPosition({mapSize / 2.0f, mapSize / 2.0f, (float)_worldGen.GetHeight(mapSize / 2, mapSize / 2) + 25.0f});
 
     CreateObjects();
 }
@@ -94,6 +94,8 @@ void DX12Sample::OnUpdate()
 
     auto diff = duration_cast<microseconds>(high_resolution_clock::now() - prevTime);
     double dt = (double)diff.count() / 1000000.0;
+
+    GameInput::Update(dt, m_hwnd);
 
     prevTime = high_resolution_clock::now();
     elapsedFrames++;
@@ -110,17 +112,29 @@ void DX12Sample::OnUpdate()
         elapsedFrames = 0;
         elapsedTime -= 1.0;
     }
-    
-    float dx = _mouseSceneTracker.camPosition.rotation + _mouseSceneTracker.pressedPoint.x - _mouseSceneTracker.currPoint.x;
-    float dy = _mouseSceneTracker.camPosition.inclination - _mouseSceneTracker.pressedPoint.y + _mouseSceneTracker.currPoint.y;
 
-    if (dy >= 89.0f)
-        dy = 89.0f;
-    else if (dy <= -89.0f)
-        dy = -89.0f;
+    float mult = GameInput::IsPressed(GameInput::kKey_lshift) ? 4.0f : 1.0f;
+    if (GameInput::IsPressed(GameInput::kKey_w))
+        _camera->MoveForward(0.1f * mult);
+    if (GameInput::IsPressed(GameInput::kKey_s))
+        _camera->MoveForward(-0.1f * mult);
+    if (GameInput::IsPressed(GameInput::kKey_a))
+        _camera->MoveSideward(0.1f * mult);
+    if (GameInput::IsPressed(GameInput::kKey_d))
+        _camera->MoveSideward(-0.1f * mult);
+    if (GameInput::IsPressed(GameInput::kKey_q))
+        _camera->MoveUpward(0.1f * mult);
+    if (GameInput::IsPressed(GameInput::kKey_e))
+        _camera->MoveUpward(-0.1f * mult);
 
-    _sceneManager->GetCamera().SetInclination(dy);
-    _sceneManager->GetCamera().SetRotation(dx);
+    if (GameInput::IsPressed(GameInput::kMouse1))
+    {
+        float dx = GameInput::GetAnalogInput(GameInput::kAnalogMouseX);
+        float dy = GameInput::GetAnalogInput(GameInput::kAnalogMouseY);
+
+        _camera->RotateHorizontally(dx);
+        _camera->RotateVertically(dy);
+    }
 }
 
 void DX12Sample::OnRender()
@@ -154,11 +168,11 @@ void DX12Sample::OnRender()
         ImGui::PlotHistogram("FPS", _frameTimes.data(), _frameTimes.size());
         ImGui::Text("Camera position:");
         ImGui::SameLine();
-        ImGui::Text("X: %.3f", _sceneManager->GetCamera().GetEyePosition().x);
+        ImGui::Text("X: %.3f", _camera->GetPosition().x);
         ImGui::SameLine();
-        ImGui::Text("Y: %.3f", _sceneManager->GetCamera().GetEyePosition().y);
+        ImGui::Text("Y: %.3f", _camera->GetPosition().y);
         ImGui::SameLine();
-        ImGui::Text("Z: %.3f", _sceneManager->GetCamera().GetEyePosition().z);
+        ImGui::Text("Z: %.3f", _camera->GetPosition().z);
         ImGui::ColorEdit3("Ambient color", (float*)&ambientColor);
         ImGui::ColorEdit3("Light color", (float*)&lightColor);
         ImGui::SliderFloat3("Light direction", (float*)&lightDir, -1.0f, 1.0f);
@@ -227,6 +241,7 @@ void DX12Sample::OnRender()
 
 void DX12Sample::OnDestroy()
 {
+    GameInput::Shutdown();
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
 }
@@ -240,27 +255,11 @@ bool DX12Sample::OnEvent(MSG msg)
             return false;
         break;
     case WM_LBUTTONDOWN:
-        _mouseSceneTracker.lBtnPressed  = true;
-        _mouseSceneTracker.pressedPoint = msg.pt;
-        _mouseSceneTracker.currPoint    = msg.pt;
-        _mouseSceneTracker.camPosition  = _sceneManager->GetCamera().GetCameraPosition();
-
         ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
         break;
     case WM_LBUTTONUP:
-        _mouseSceneTracker.lBtnPressed = false;
         ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
         break;
-    case WM_MOUSEMOVE:
-        if (_mouseSceneTracker.lBtnPressed)
-            _mouseSceneTracker.currPoint = msg.pt;
-        break;
-    case WM_MOUSEWHEEL: {
-        auto& camera = _sceneManager->GetCamera();
-        float radius = camera.GetCameraPosition().radius;
-        short zDelta = GET_WHEEL_DELTA_WPARAM(msg.wParam);
-        camera.SetRadius(radius * (zDelta > 0 ? 0.9f : 1.1f));
-        } break;
     }
 
     return true;
@@ -282,6 +281,12 @@ void DX12Sample::HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPA
     case WM_EXITSIZEMOVE:
         _isResizing = false;
         AdjustSizes();
+        break;
+    case WM_ACTIVATE:
+        if (wParam == WA_INACTIVE)
+            GameInput::UnacquireMouse();
+        if (wParam == WA_CLICKACTIVE || wParam == WA_ACTIVE)
+            GameInput::AcquireMouse();
         break;
     }
 }

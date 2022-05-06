@@ -18,12 +18,6 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
                            RenderTargetManager*             rtManager)
     : _deviceResources(deviceResources)
     , _rtManager(rtManager)
-    , _mainCamera(Graphics::ProjectionType::Perspective,
-                  0.1f,
-                  5000.f,
-                  7.5f * pi / 18.0f,
-                  static_cast<float>(screenWidth),
-                  static_cast<float>(screenHeight))
     , _meshManager(_deviceResources->GetDevice())
     , _descriptorHeap(_deviceResources->GetDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 512)
     , _cmdList(CommandListType::Direct, _deviceResources->GetDevice())
@@ -31,11 +25,6 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     assert(rtManager);
 
     _cmdList.Close();
-
-    _mainCamera.SetCenter({0.0f, 0.0f, 0.0f});
-    _mainCamera.SetRadius(10.0f);
-    _mainCamera.SetRotation(45.0f);
-    _mainCamera.SetInclination(20.0f);
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
 
@@ -79,11 +68,6 @@ void SceneManager::ExecuteCommandList(const CommandList& commandList)
     _deviceResources->WaitForCurrentFrame();
 }
 
-Graphics::SphericalCamera& SceneManager::GetCamera()
-{
-    return _mainCamera;
-}
-
 void SceneManager::SetLightColor(float r, float g, float b)
 {
     _lightColors[0] = r;
@@ -114,7 +98,8 @@ void SceneManager::UpdateWindowSize(UINT screenWidth, UINT screenHeight)
     _screenHeight = screenHeight;
 
     CreateRenderTargets();
-    _mainCamera.SetScreenParams((float)_screenWidth, (float)_screenHeight);
+    if (_mainCamera)
+        _mainCamera->SetScreenParams((float)_screenWidth, (float)_screenHeight);
 }
 
 void SceneManager::CreateRenderTargets()
@@ -504,16 +489,44 @@ std::shared_ptr<SceneObject> SceneManager::CreateCustomObject(const std::vector<
     );
 }
 
+std::shared_ptr<Graphics::SphericalCamera> SceneManager::CreateSphericalCamera()
+{
+    const float znear = 0.1f;
+    const float zfar = 3100.f;
+    const float fov = 7.5f * pi / 18.0f;
+
+    auto output = std::make_shared<Graphics::SphericalCamera>(znear, zfar, fov, (float)_screenWidth, (float)_screenHeight);
+
+    output->SetRadius(10.0f);
+    output->SetRotation(45.0f);
+    output->SetInclination(20.0f);
+
+    _mainCamera = output;
+    return output;
+}
+
+std::shared_ptr<Graphics::WASDCamera> SceneManager::CreateWASDCamera()
+{
+    const float znear = 0.1f;
+    const float zfar  = 3100.f;
+    const float fov = 7.5f * pi / 18.0f;
+
+    auto output = std::make_shared<Graphics::WASDCamera>(znear, zfar, fov, (float)_screenWidth, (float)_screenHeight);
+
+    _mainCamera = output;
+    return output;
+}
+
 void SceneManager::UpdateObjects()
 {
     void* sceneData = nullptr;
 
     ThrowIfFailed(_viewParams->Map(0, nullptr, &sceneData));
 
-    DirectX::XMFLOAT4 camPos = _mainCamera.GetEyePosition();
-    DirectX::XMVECTOR m      = {camPos.x, camPos.y, camPos.z, camPos.w};
+    DirectX::XMFLOAT3 camPos = _mainCamera ? _mainCamera->GetPosition() : XMFLOAT3{};
+    DirectX::XMVECTOR m      = {camPos.x, camPos.y, camPos.z, 1.0f};
 
-    DirectX::XMMATRIX viewProjMat = _mainCamera.GetViewProjMatrix();
+    DirectX::XMMATRIX viewProjMat = _mainCamera ? _mainCamera->GetViewProjMatrix() : XMMatrixIdentity();
 
     ((ViewParams*)sceneData)->viewPos         = m;
     ((ViewParams*)sceneData)->inverseViewProj = DirectX::XMMatrixInverse(nullptr, viewProjMat);

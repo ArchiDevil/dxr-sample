@@ -1,4 +1,5 @@
 set(SRC
+    AbstractCamera.h
     CommandList.cpp
     CommandList.h
     ComputePipelineState.cpp
@@ -9,14 +10,14 @@ set(SRC
     FeaturesCollector.h
     GeometryTree.cpp
     GeometryTree.h
-    Math.h
     GraphicsPipelineState.cpp
     GraphicsPipelineState.h
+    ICamera.h
+    Math.h
     MeshManager.cpp
     MeshManager.h
     MeshObject.cpp
     MeshObject.h
-    Misc.h
     RenderTargetManager.cpp
     RenderTargetManager.h
     RootSignature.cpp
@@ -28,6 +29,8 @@ set(SRC
     SphericalCamera.cpp
     SphericalCamera.h
     Types.h
+    WASDCamera.cpp
+    WASDCamera.h
 )
 
 add_library(utils STATIC ${SRC})
