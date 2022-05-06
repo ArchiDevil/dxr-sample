@@ -66,6 +66,8 @@ private:
     void CreateRenderTargets();
     void CreateFrameResources();
 
+    void CreateDepthMap();
+
     void CreateRayGenMissTables();
     void CreateHitTable();
 
@@ -110,6 +112,8 @@ private:
     ComPtr<ID3D12Resource> _viewParams  = nullptr;
     ComPtr<ID3D12Resource> _lightParams = nullptr;
     ComPtr<ID3D12Resource> _tlas        = nullptr;
+    // shadows
+    ComPtr<ID3D12Resource> _depthMapTexture = nullptr;
 
     // other objects
     UINT                          _screenWidth  = 0;

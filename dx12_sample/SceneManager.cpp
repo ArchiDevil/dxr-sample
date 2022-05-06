@@ -34,6 +34,7 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
     CreateRaytracingPSO();
 
     CreateRayGenMissTables();
+    CreateDepthMap();
 }
 
 SceneManager::~SceneManager()
@@ -437,6 +438,39 @@ void SceneManager::CreateFrameResources()
 {
     CreateConstantBuffer(sizeof(ViewParams), &_viewParams, D3D12_RESOURCE_STATE_GENERIC_READ);
     CreateConstantBuffer(sizeof(LightParams), &_lightParams, D3D12_RESOURCE_STATE_GENERIC_READ);
+}
+
+void SceneManager::CreateDepthMap()
+{
+    const DXGI_FORMAT descs_format{DXGI_FORMAT_R16G16B16A16_UNORM};
+
+    D3D12_RESOURCE_DESC depthMapDesc = {};
+    depthMapDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    depthMapDesc.Format              = descs_format;
+    depthMapDesc.Flags               = D3D12_RESOURCE_FLAG_NONE;
+    depthMapDesc.SampleDesc.Count    = 1;
+    depthMapDesc.DepthOrArraySize    = 1;
+    depthMapDesc.MipLevels           = 1;
+    depthMapDesc.Width               = _screenWidth;
+    depthMapDesc.Height              = _screenHeight;
+    depthMapDesc.Alignment           = 0;
+
+    D3D12_HEAP_PROPERTIES defaultHeapProps = {D3D12_HEAP_TYPE_DEFAULT};
+    ThrowIfFailed(_deviceResources->GetDevice()->CreateCommittedResource(
+        &defaultHeapProps, D3D12_HEAP_FLAG_NONE, &depthMapDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
+        IID_PPV_ARGS(&_depthMapTexture)));
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Format                          = descs_format;
+    srvDesc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Texture2D.MipLevels             = 1;
+
+    auto address = _descriptorHeap.GetFreeCPUAddress();
+    _deviceResources->GetDevice()->CreateShaderResourceView(_depthMapTexture.Get(), &srvDesc, address.handle);
+
+    /// CommandList cmdList{CommandListType::Direct, _deviceResources->GetDevice()};
+
 }
 
 std::shared_ptr<SceneObject> SceneManager::CreateObject(std::shared_ptr<MeshObject> meshObject, Material material)

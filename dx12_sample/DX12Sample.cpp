@@ -509,26 +509,53 @@ ComPtr<IDXGISwapChain3> DX12Sample::CreateSwapChain(ComPtr<IDXGIFactory4>      f
     return swapChain;
 }
 
+
+std::shared_ptr<SceneObject> CreatePlane(SceneManager* sceneManager, float width, XMFLOAT3 color = {0.2f, 0.5f, 0.5f})
+{
+    std::vector<GeometryVertex> vertices;
+    float3                      normal = {0.0f, 0.0f, 1.0f};
+
+    float width_2 = width/2.0f;
+    vertices.emplace_back(GeometryVertex{{-width_2, -width_2, 0.0f}, normal, color});
+    vertices.emplace_back(GeometryVertex{{width_2, -width_2, 0.0f}, normal, color});
+    vertices.emplace_back(GeometryVertex{{-width_2, width_2, 0.0f}, normal, color});
+    vertices.emplace_back(GeometryVertex{{width_2, width_2, 0.0f}, normal, color});
+
+    std::vector<uint32_t> indices = { 0, 3, 2, 0, 1, 3};
+    return sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Diffuse});
+}
+
+
 void DX12Sample::CreateObjects()
 {
-    auto lut = _colorsLut;
-    // we do not need to gen colors for water
-    lut.erase(40);
-    lut.erase(50);
-    lut[40] = XMUINT3{ 127, 127, 127 }; // rocky bottom
+    //auto lut = _colorsLut;
+    //// we do not need to gen colors for water
+    //lut.erase(40);
+    //lut.erase(50);
+    //lut[40] = XMUINT3{ 127, 127, 127 }; // rocky bottom
 
-    TerrainManager tm{_worldGen, lut, 128};
-    for (auto& chunk : tm.GetChunks())
-    {
-        auto obj = _sceneManager->CreateCustomObject(chunk.landVertices, chunk.landIndices, Material{MaterialType::Diffuse});
-        obj->Position({(float)chunk.absX, (float)chunk.absY, 0.0});
-        
-        if (!chunk.waterVertices.empty() && !chunk.waterIndices.empty())
-        {
-            obj = _sceneManager->CreateCustomObject(chunk.waterVertices, chunk.waterIndices, Material{MaterialType::Water});
-            obj->Position({(float)chunk.absX, (float)chunk.absY, 0.0});
-        }
-    }
+    //TerrainManager tm{_worldGen, lut, 128};
+    //for (auto& chunk : tm.GetChunks())
+    //{
+    //    auto obj = _sceneManager->CreateCustomObject(chunk.landVertices, chunk.landIndices, Material{MaterialType::Diffuse});
+    //    obj->Position({(float)chunk.absX, (float)chunk.absY, 0.0});
+    //    
+    //    if (!chunk.waterVertices.empty() && !chunk.waterIndices.empty())
+    //    {
+    //        obj = _sceneManager->CreateCustomObject(chunk.waterVertices, chunk.waterIndices, Material{MaterialType::Water});
+    //        obj->Position({(float)chunk.absX, (float)chunk.absY, 0.0});
+    //    }
+    //}
+
+    _camera->SetPosition({5.0f, 5.0f, 5.0f});
+    _camera->RotateHorizontally(90.0f);
+    _camera->RotateVertically(-0.3f);
+
+
+    _sceneManager->CreateAxis();
+    auto plane = CreatePlane(_sceneManager.get(), 3.0f);
+    auto plane2 = CreatePlane(_sceneManager.get(), 1.5f, {0.7f, 0.7f, 0.2f});
+    plane2->Position({0.0f, 0.0f, 1.0f});
 }
 
 void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int islandSize)
@@ -551,14 +578,6 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
 
         XMVECTOR cross = DirectX::XMVector3Cross(vector1, vector2);
         DirectX::XMVECTOR norm = DirectX::XMVector3Normalize(cross);
-
-        //XMVECTOR norm1  = DirectX::XMLoadFloat3(&vertex1.normal);
-        //if (!DirectX::XMVector3Equal(norm, norm1) &&
-        //    !DirectX::XMVector3Equal(DirectX::XMVector3Length(norm1), DirectX::XMVectorZero()))
-        //{
-        //    norm = DirectX::XMVectorAdd(norm1, norm);
-        //    norm = DirectX::XMVector3Normalize(norm);
-        //}
         DirectX::XMStoreFloat3(&vertex1.normal, norm);
         DirectX::XMStoreFloat3(&vertex2.normal, norm);
         DirectX::XMStoreFloat3(&vertex3.normal, norm);
@@ -567,7 +586,7 @@ void CalculateNormal(std::vector<GeometryVertex>& vertices, uint32_t index, int 
     if (vertices.size() > index + islandSize + 2)
     {
         calcNorm(index, index + 1, index + islandSize + 1);
-        //calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
+        calcNorm(index + islandSize + 2, index + islandSize + 1, index + 1);
     }
 }
 
@@ -575,24 +594,25 @@ void DX12Sample::CreateIsland()
 {
     int islandSize = _worldGen.GetSideSize() - 1;
 
-    float multi = 300.0f;
+    float multi = 0.5f;
 
     std::vector<GeometryVertex> vertices;
     vertices.reserve(islandSize * islandSize);
 
-    float islandWidth = 6.0f;
+    float islandWidth = 100.0f;
 
     for (int y = 0; y <= islandSize; y++)
     {
         for (int x = 0; x <= islandSize; x++)
         {
-            int height = _worldGen.GetHeight(x, y);
+            uint8_t height = _worldGen.GetHeight(x, y) * multi;
 
-            const float nz     = height * 1.0f / multi;
+            const float nz     = height;
             const float nx     = -islandWidth / 2 + islandWidth * ((float)x / islandSize);
             const float ny     = -islandWidth / 2 + islandWidth * ((float)y / islandSize);
             float3      normal = {0.0f, 0.0f, 0.0f};
-            float3      color  = {0.5f, 0.5f, 0.5f};
+            const auto     colorX = _colorsLut.lower_bound(nz / multi)->second;
+            const XMFLOAT3 color  = {colorX.x / 255.0f, colorX.y / 255.0f, colorX.z / 255.0f};
             vertices.emplace_back(GeometryVertex{{nx, ny, nz}, normal, color});
         }
     }
@@ -618,5 +638,5 @@ void DX12Sample::CreateIsland()
         indices.emplace_back(i + 1);
     }
 
-    _sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Specular});
+    _sceneManager->CreateCustomObject(vertices, indices, Material{MaterialType::Diffuse});
 }
