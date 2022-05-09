@@ -40,8 +40,7 @@ public:
     void DrawScene();
     void Present();
 
-    // only for texture creation!
-    void ExecuteCommandList(const CommandList & commandList);
+    void ExecuteCommandList(const CommandList& commandList, bool wait = true);
 
     Graphics::SphericalCamera& GetCamera();
     void SetLightColor(float r, float g, float b);
@@ -68,6 +67,8 @@ private:
 
     void PopulateCommandList();
     void BuildTLAS();
+
+    void PrecomputeTables();
 
     std::shared_ptr<SceneObject> CreateObject(std::shared_ptr<MeshObject> meshObject, Material material);
     void                         UpdateObjects();
@@ -122,4 +123,9 @@ private:
     float _ambientColor[3];
 
     bool _isObjectsChanged = false;
+
+    // precomputed scattering things
+    ComPtr<ID3D12Resource> _transmittanceTable;
+    ComPtr<ID3D12Resource> _singleScatteringTable; // TODO (DB): it is temporary and used for debugging
+    ComPtr<ID3D12Resource> _inScatterTable;
 };

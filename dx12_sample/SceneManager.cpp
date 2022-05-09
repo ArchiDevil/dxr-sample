@@ -3,6 +3,7 @@
 #include "SceneManager.h"
 
 #include <shaders/Common.h>
+#include <utils/Filesystem.h>
 #include <utils/RenderTargetManager.h>
 
 #include <filesystem>
@@ -39,6 +40,8 @@ SceneManager::SceneManager(std::shared_ptr<DeviceResources> deviceResources,
 
     SetThreadDescription(GetCurrentThread(), L"Main thread");
 
+    PrecomputeTables();
+
     CreateFrameResources();
     UpdateWindowSize(screenWidth, screenHeight);
     CreateRootSignatures();
@@ -72,11 +75,13 @@ void SceneManager::Present()
     _deviceResources->WaitForCurrentFrame();
 }
 
-void SceneManager::ExecuteCommandList(const CommandList& commandList)
+void SceneManager::ExecuteCommandList(const CommandList& commandList, bool wait /*= true*/)
 {
     std::array<ID3D12CommandList*, 1> cmdListsArray = {commandList.GetInternal().Get()};
     _deviceResources->GetCommandQueue()->ExecuteCommandLists((UINT)cmdListsArray.size(), cmdListsArray.data());
-    _deviceResources->WaitForCurrentFrame();
+
+    if (wait)
+        _deviceResources->WaitForCurrentFrame();
 }
 
 Graphics::SphericalCamera& SceneManager::GetCamera()
@@ -301,25 +306,6 @@ void SceneManager::CreateUAVBuffer(size_t bufferSize, ComPtr<ID3D12Resource>* pO
         &heapProp, D3D12_HEAP_FLAG_NONE, &bufferDesc, initialState, nullptr, IID_PPV_ARGS(&(*pOutBuffer))));
 }
 
-std::vector<char> readBytecode(const std::string& fileName)
-{
-    std::ifstream file;
-    if (!std::filesystem::exists(fileName))
-    {
-        throw std::runtime_error("File " + fileName + " doesn't exist");
-    }
-
-    file.open(fileName, std::ifstream::binary);
-
-    file.seekg(0, file.end);
-    long bytecodeLength = file.tellg();
-    file.seekg(0, file.beg);
-
-    std::vector<char> bytecode(bytecodeLength);
-    file.read(bytecode.data(), bytecodeLength);
-    return bytecode;
-}
-
 void SceneManager::CreateRaytracingPSO()
 {
     std::vector<D3D12_STATE_SUBOBJECT> subobjects;
@@ -327,7 +313,7 @@ void SceneManager::CreateRaytracingPSO()
     D3D12_DXIL_LIBRARY_DESC library_desc = {};
 
     D3D12_SHADER_BYTECODE bytecode = {};
-    std::vector<char> bytes = readBytecode("Sample.cso");
+    std::vector<char> bytes = ReadFileContent("Sample.cso");
 
     library_desc.DXILLibrary.pShaderBytecode = bytes.data();
     library_desc.DXILLibrary.BytecodeLength = bytes.size();
@@ -619,4 +605,153 @@ void SceneManager::BuildTLAS()
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
     _deviceResources->GetDevice()->CreateShaderResourceView(nullptr, &srvDesc, heapHandle);
+}
+
+void SceneManager::PrecomputeTables()
+{
+    auto        device = _deviceResources->GetDevice();
+    DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    
+    // Transmittance computing
+    {
+        const UINT mapWidth  = 256;
+        const UINT mapHeight = 64;
+
+        RootSignature rs;
+        rs.Init(1, 0);
+        rs[0].InitAsDescriptorsTable(1);
+        rs[0].InitTableRange(0, 0, 2, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+        rs.Finalize(device);
+
+        auto content = ReadFileContent("TransmittanceCompute.cso");
+        D3D12_SHADER_BYTECODE bc = {};
+        bc.BytecodeLength        = content.size();
+        bc.pShaderBytecode       = content.data();
+
+        D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {};
+        desc.CS                                = bc;
+        desc.Flags                             = D3D12_PIPELINE_STATE_FLAG_NONE;
+        desc.pRootSignature                    = rs.GetInternal().Get();
+
+        ComPtr<ID3D12PipelineState> pso;
+        ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
+
+        DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
+
+        D3D12_RESOURCE_DESC texDesc = {};
+        texDesc.Width               = mapWidth;
+        texDesc.Height              = mapHeight;
+        texDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        texDesc.Format              = format;
+        texDesc.MipLevels           = 1;
+        texDesc.DepthOrArraySize    = 1;
+        texDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        texDesc.SampleDesc.Count    = 1;
+
+        D3D12_HEAP_PROPERTIES heapProps = {};
+        heapProps.Type                  = D3D12_HEAP_TYPE_DEFAULT;
+
+        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                                      IID_PPV_ARGS(&_transmittanceTable)));
+        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                                      IID_PPV_ARGS(&_singleScatteringTable)));
+
+
+        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+        uavDesc.Format                           = format;
+        uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
+        device->CreateUnorderedAccessView(_transmittanceTable.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+        heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(_singleScatteringTable.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+        CommandList cmdList{CommandListType::Direct, device, pso};
+
+        auto heap = tempHeap.GetResource().Get();
+        cmdList->SetDescriptorHeaps(1, &heap);
+        cmdList->SetComputeRootSignature(rs.GetInternal().Get());
+        cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0));
+        cmdList->Dispatch(mapWidth, mapHeight, 1);
+        cmdList.Close();
+
+        ExecuteCommandList(cmdList);
+    }
+
+    // Irradiance computing
+    {
+        const UINT mapWidth = 256;
+        const UINT mapHeight = 128;
+        const UINT mapDepth = 32;
+
+        auto content = ReadFileContent("IrradianceCompute.cso");
+        D3D12_SHADER_BYTECODE bc = {};
+        bc.BytecodeLength = content.size();
+        bc.pShaderBytecode = content.data();
+
+        RootSignature rs;
+        rs.Init(1, 0);
+        rs[0].InitAsDescriptorsTable(2);
+        rs[0].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+        rs[0].InitTableRange(1, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
+        rs.Finalize(device);
+
+        D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {};
+        desc.CS = bc;
+        desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+        desc.pRootSignature = rs.GetInternal().Get();
+
+        ComPtr<ID3D12PipelineState> pso;
+        ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
+
+        DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
+
+        D3D12_RESOURCE_DESC texDesc = {};
+        texDesc.Width = mapWidth;
+        texDesc.Height = mapHeight;
+        texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+        texDesc.Format = format;
+        texDesc.MipLevels = 1;
+        texDesc.DepthOrArraySize = mapDepth;
+        texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        texDesc.SampleDesc.Count = 1;
+
+        D3D12_HEAP_PROPERTIES heapProps = {};
+        heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                                      IID_PPV_ARGS(&_inScatterTable)));
+
+        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+        uavDesc.Format = format;
+        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
+        uavDesc.Texture3D.WSize = mapDepth;
+        device->CreateUnorderedAccessView(_inScatterTable.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+        heapHandle = tempHeap.GetFreeCPUAddress();
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        device->CreateShaderResourceView(_transmittanceTable.Get(), &srvDesc, heapHandle.handle);
+
+        CommandList cmdList{ CommandListType::Direct, device, pso };
+
+        auto heap = tempHeap.GetResource().Get();
+        cmdList->SetDescriptorHeaps(1, &heap);
+        cmdList->SetComputeRootSignature(rs.GetInternal().Get());
+        cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0));
+        cmdList->Dispatch(mapWidth, mapHeight, mapDepth);
+        cmdList.Close();
+
+        ExecuteCommandList(cmdList);
+    }
 }

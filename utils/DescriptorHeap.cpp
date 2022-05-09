@@ -23,7 +23,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetCPUAddress(std::size_t index) con
 
 D3D12_GPU_DESCRIPTOR_HANDLE DescriptorHeap::GetGPUAddress(std::size_t index) const
 {
-    auto heapStart = _cpuHeap->GetGPUDescriptorHandleForHeapStart();
+    auto heapStart = _gpuHeap->GetGPUDescriptorHandleForHeapStart();
     heapStart.ptr += _incrementSize * index;
     return heapStart;
 }
@@ -38,19 +38,6 @@ FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> DescriptorHeap::GetFreeCPUAddress()
     auto heapStart = _cpuHeap->GetCPUDescriptorHandleForHeapStart();
     heapStart.ptr += _size * _incrementSize;
     ++_size;
-    return {_size - 1, heapStart};
-}
-
-FreeAddress<D3D12_GPU_DESCRIPTOR_HANDLE> DescriptorHeap::GetFreeGPUAddress()
-{
-    _dirty = true;
-
-    if (_size == _capacity)
-        Reallocate(_size + _size / 3);  // add 33% of the size
-
-    ++_size;
-    auto heapStart = _cpuHeap->GetGPUDescriptorHandleForHeapStart();
-    heapStart.ptr += _size * _incrementSize;
     return {_size - 1, heapStart};
 }
 

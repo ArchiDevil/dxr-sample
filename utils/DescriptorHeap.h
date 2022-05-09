@@ -23,7 +23,6 @@ public:
 
     // Returns address of a free descriptor in the heap and reallocates heap if needed
     FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> GetFreeCPUAddress();
-    FreeAddress<D3D12_GPU_DESCRIPTOR_HANDLE> GetFreeGPUAddress();
 
     // Returns number of descriptors in the heap
     std::size_t GetNumDescriptors() const;
