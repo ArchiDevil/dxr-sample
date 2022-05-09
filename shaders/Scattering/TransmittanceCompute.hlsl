@@ -1,14 +1,6 @@
 #include "Common.hlsl"
 
 RWTexture2D<float4> transmittanceMap : register(u0);
-RWTexture2D<float4> deltaE           : register(u1);
-
-float2 GetAltMu(float2 uv)
-{
-    float mu = -0.15 + tan(1.5 * uv.x) / tan(1.5) * (1.0 + 0.15);
-    float alt = uv.y * uv.y * (Rt - Rg) + Rg;
-    return float2(alt, mu);
-}
 
 float DensityOverPath(in float scaleHeight, in float alt, in float mu)
 {
@@ -39,14 +31,13 @@ void CSMain(uint3 groupId : SV_GroupID)
     uint2 dims;
     transmittanceMap.GetDimensions(dims.x, dims.y);
     
-    float u = (float)groupId.x / dims.x;
-    float v = (float)groupId.y / dims.y;
+    float u = groupId.x / float(dims.x);
+    float v = groupId.y / float(dims.y);
     
-    float2 altMu = GetAltMu(float2(u, v));
+    float2 altMu = GetTransmittanceAltMu(u, v);
     float3 t = betaR * DensityOverPath(HR, altMu.x, altMu.y)
              + betaM * DensityOverPath(HM, altMu.x, altMu.y);
     
     float3 transmittance = exp(-t);
     transmittanceMap[groupId.xy] = float4(transmittance, 0.0f);
-    deltaE[groupId.xy] = float4(transmittance * saturate(altMu.y), 0.0f);
 }

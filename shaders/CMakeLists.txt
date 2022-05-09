@@ -5,7 +5,8 @@ set(FILES
 )
 
 set(SCATTERING_SHADERS
-    Scattering/IrradianceCompute.hlsl
+    Scattering/SingleInscatterCompute.hlsl
+    Scattering/SingleIrradianceCompute.hlsl
     Scattering/TransmittanceCompute.hlsl
 )
 
@@ -33,7 +34,8 @@ set(INTERMEDIATE_DIR "${CMAKE_BINARY_DIR}/shaders/${CMAKE_CFG_INTDIR}")
 set(OUTPUT_FILES 
         Sample.cso
         TransmittanceCompute.cso
-        IrradianceCompute.cso
+        SingleInscatterCompute.cso
+        SingleIrradianceCompute.cso
 )
 
 foreach(OFILE IN LISTS OUTPUT_FILES)

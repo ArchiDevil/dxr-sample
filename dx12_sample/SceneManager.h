@@ -125,7 +125,12 @@ private:
     bool _isObjectsChanged = false;
 
     // precomputed scattering things
-    ComPtr<ID3D12Resource> _transmittanceTable;
-    ComPtr<ID3D12Resource> _singleScatteringTable; // TODO (DB): it is temporary and used for debugging
-    ComPtr<ID3D12Resource> _inScatterTable;
+    ComPtr<ID3D12Resource> _inscatterTable;
+    ComPtr<ID3D12Resource> _irradianceTable;
+
+    // Temporary buffers (could be removed and put on a stack in PrecomputeTables()
+    ComPtr<ID3D12Resource> _transmittance;
+    ComPtr<ID3D12Resource> _deltaE;
+    ComPtr<ID3D12Resource> _deltaSR; // Rayleigh scattering table
+    ComPtr<ID3D12Resource> _deltaSM; // Mie scattering table
 };
