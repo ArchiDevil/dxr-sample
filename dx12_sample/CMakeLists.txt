@@ -4,6 +4,8 @@ set(SRC
     DX12Sample.h
     DXSample.cpp
     DXSample.h
+    GameInput.cpp
+    GameInput.h
     main.cpp
     SceneManager.cpp
     SceneManager.h

@@ -4,19 +4,11 @@
 
 #include "DXSample.h"
 #include "DeviceResources.h"
+#include "GameInput.h"
 #include "SceneManager.h"
 #include "worldgen/WorldGen.h"
 
 #include <utils/SceneObject.h>
-
-struct MouseSceneTracker
-{
-    bool                     lBtnPressed = false;
-    bool                     rBtnPressed = false;
-    POINT                    pressedPoint{0, 0};
-    POINT                    currPoint{0, 0};
-    Graphics::CameraPosition camPosition;
-};
 
 class DX12Sample : public DXSample
 {
@@ -63,10 +55,11 @@ private:
     static constexpr size_t _swapChainBuffersCount = 2;
     bool                    _isResizing            = false;
 
-    ComPtr<ID3D12DescriptorHeap> _uiDescriptors = nullptr;
-    std::unique_ptr<CommandList> _uiCmdList;
-    std::array<float, 30> _frameTimes = {};
-    bool                         _showTerrainControls = false;
+    ComPtr<ID3D12DescriptorHeap>               _uiDescriptors = nullptr;
+    std::unique_ptr<CommandList>               _uiCmdList;
+    std::array<float, 30>                      _frameTimes          = {};
+    bool                                       _showTerrainControls = false;
+    std::shared_ptr<Graphics::WASDCamera>      _camera;
 
     WorldGen                     _worldGen;
     ComPtr<ID3D12Resource>       _heightMapTexture;
@@ -92,6 +85,4 @@ private:
         {105, XMUINT3{127, 127, 127}},  // rock
         {255, XMUINT3{255, 255, 255}}   // snow
     };
-
-    MouseSceneTracker _mouseSceneTracker;
 };

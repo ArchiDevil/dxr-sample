@@ -16,6 +16,7 @@
 #include <utils/ShaderTable.h>
 #include <utils/SphericalCamera.h>
 #include <utils/Types.h>
+#include <utils/WASDCamera.h>
 
 class WorldGen;
 
@@ -42,7 +43,6 @@ public:
 
     void ExecuteCommandList(const CommandList& commandList, bool wait = true);
 
-    Graphics::SphericalCamera& GetCamera();
     void SetLightColor(float r, float g, float b);
     void SetLightDirection(float x, float y, float z);
     void SetAmbientColor(float r, float g, float b);
@@ -53,6 +53,9 @@ public:
     std::shared_ptr<SceneObject> CreateCustomObject(const std::vector<GeometryVertex>& vertices,
                                                     const std::vector<uint32_t>&       indices,
                                                     Material                           material);
+
+    std::shared_ptr<Graphics::SphericalCamera> CreateSphericalCamera();
+    std::shared_ptr<Graphics::WASDCamera>      CreateWASDCamera();
 
     void UpdateWindowSize(UINT screenWidth, UINT screenHeight);
 
@@ -114,9 +117,10 @@ private:
     UINT                          _screenHeight = 0;
     RenderTargetManager*          _rtManager    = nullptr;
     std::shared_ptr<RenderTarget> _HDRRt        = nullptr;
-    Graphics::SphericalCamera     _mainCamera;
     MeshManager                   _meshManager;
     SceneObjects                  _sceneObjects;
+
+    std::shared_ptr<Graphics::AbstractCamera> _mainCamera;
 
     float _lightColors[3];
     float _lightDir[3];
