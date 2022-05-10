@@ -5,12 +5,12 @@ RWTexture2D<float4> transmittanceMap : register(u0);
 float DensityOverPath(float scaleHeight, float alt, float mu)
 {
     // if ray below horizon return max density
-    float cosHorizon = -sqrt(1.0f - ((Rg * Rg) / (alt * alt)));
+    float cosHorizon = -sqrt(1.0f - (Rg / alt) * (Rg / alt));
     if (mu < cosHorizon)
         return 1e9;
 
     float totalDensity = 0.0f;
-    float dx = IntersectAtmosphere(alt, mu) / float(TRANSMITTANCE_INTEGRAL_SAMPLES);
+    float dx = Limit(alt, mu) / float(TRANSMITTANCE_INTEGRAL_SAMPLES);
 
     float y_j = exp(-(alt - Rg) / scaleHeight);
 

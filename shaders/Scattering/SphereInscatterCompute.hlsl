@@ -99,21 +99,13 @@ void CSMain(uint3 groupId : SV_GroupID)
     uint3 dims;
     deltaSR.GetDimensions(dims.x, dims.y, dims.z); // all 3D inputs have the same dimensions
 
-    float u = (float) groupId.x / dims.x;
-    float v = (float) groupId.y / dims.y;
-
     uint tableWidth = dims.x;
     uint tableHeight = dims.y;
 
-    uint layer = groupId.z;
-    uint altLayers = dims.z + 1;
-
-    float alt = layer / (altLayers - 1.0);
-    alt = alt * alt;
-    alt = sqrt(Rg * Rg + alt * (Rt * Rt - Rg * Rg)) + (layer == 0 ? 0.01 : (layer == altLayers - 1 ? -0.001 : 0.0));
+    float alt = GetAlt(groupId.z, dims.z);
     float4 dhdH = GetDhdH(alt);
 
-    float3 muMusNu = GetMuMusNu(alt, dhdH, u, v, tableWidth, tableHeight, RES_NU);
+    float3 muMusNu = GetMuMusNu(alt, dhdH, float(groupId.x), float(groupId.y), tableWidth, tableHeight, RES_NU);
     float3 raymie = Inscatter(alt, muMusNu.x, muMusNu.y, muMusNu.z, tableWidth, RES_NU);
     deltaJ[groupId] = float4(raymie, 1.0);
 }

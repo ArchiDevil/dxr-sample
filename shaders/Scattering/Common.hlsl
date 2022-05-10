@@ -7,6 +7,7 @@
 
 #define IRRADIANCE_INTEGRAL_SAMPLES 32
 
+#define Rl 6421 // just a bit over the planet surface
 #define Rt 6420 // top of atmosphere height
 #define Rg 6360 // surface height
 
@@ -26,41 +27,19 @@
 #define RES_NU 8 // resolution of the sun-zenith angle texture
 #define AVERAGE_GROUND_REFLECTANCE 0.1
 
-int RaySphereIntersection(float alt, float mu, out float dist1, out float dist2)
+float Limit(float alt, float mu)
 {
-    float2 rayPos = float2(0.0, alt);
-    float2 rayDir = normalize(float2(sqrt(1 - mu * mu), mu));
-
-    float p = dot(rayDir, rayPos);
-    float q = dot(rayPos, rayPos) - (Rt * Rt);
-    
-    float discriminant = (p * p) - q;
-    if (discriminant < 0.0f)
-        return 0;
-
-    float dRoot = sqrt(discriminant);
-    dist1 = -p - dRoot;
-    dist2 = -p + dRoot;
-
-    return (discriminant > 1e-7) ? 2 : 1;
-}
-
-float IntersectAtmosphere(float alt, float mu)
-{
-    float dist1, dist2;
-    int numIntersections = RaySphereIntersection(alt, mu, dist1, dist2);
-    if (numIntersections == 0)
+    float dout = -alt * mu + sqrt(alt * alt * (mu * mu - 1.0) + Rl * Rl);
+    float delta2 = alt * alt * (mu * mu - 1.0) + Rg * Rg;
+    if (delta2 >= 0.0)
     {
-        return 0.0f;
+        float din = -alt * mu - sqrt(delta2);
+        if (din >= 0.0)
+        {
+            dout = min(dout, din);
+        }
     }
-    else if (numIntersections == 1)
-    {
-        return abs(dist2);
-    }
-    else
-    {
-        return max(dist1, dist2);
-    }
+    return dout;
 }
 
 // Returns the altitude and view-zenith angle for a given texture coordinates [0; 1]
@@ -96,19 +75,28 @@ float2 GetTransmittanceUV(float alt, float mu)
 // Calculates the transmittance of the light for a given altitude and mu
 float3 Transmittance(float alt, float mu, RWTexture2D<float4> transmittance)
 {
-    float2 uv = GetTransmittanceUV(alt, mu);
-
     uint2 dims;
     transmittance.GetDimensions(dims.x, dims.y);
 
+    float2 uv = GetTransmittanceUV(alt, mu);
     uint2 coords = uint2(uint(dims.x * uv.x), uint(dims.y * uv.y));
     return transmittance[coords].rgb;
 }
 
 float3 Transmittance(float alt, float mu, float dist, RWTexture2D<float4> transmittance)
 {
-    float alt_i = sqrt(alt * alt + dist * dist + 2.0 * dist * alt * mu);
-    return Transmittance(alt_i, mu, transmittance).rgb;
+    float alt1 = sqrt(alt * alt + dist * dist + 2.0 * dist * alt * mu);
+    float mu1 = (alt * mu + dist) / alt1;
+    float3 result = float3(0.0f, 0.0f, 0.0f);
+    if (mu > 0.0)
+    {
+        result = min(Transmittance(alt, mu, transmittance) / Transmittance(alt1, mu1, transmittance), 1.0);
+    }
+    else
+    {
+        result = min(Transmittance(alt1, -mu1, transmittance) / Transmittance(alt, -mu, transmittance), 1.0);
+    }
+    return result;
 }
 
 float2 GetIrradianceUV(float alt, float mus)
@@ -190,42 +178,53 @@ float mod(float x, float y)
     return x - y * floor(x / y);
 }
 
-float3 GetMuMusNu(float alt, float4 dhdH, float u, float v, uint tableWidth, uint tableHeight, uint resNu)
+float3 GetMuMusNu(float alt, float4 dhdH, float x, float y, uint tableWidth, uint resMu, uint resNu)
 {
-    float x = u * float(tableWidth);
-    float y = v * tableHeight;
     float resMus = tableWidth / resNu;
-    
     float mu, mus, nu;
 
 #ifdef INSCATTER_NON_LINEAR
-    if (y < float(tableHeight) / 2.0)
+    if (y < float(resMu) / 2.0) // top half
     {
-        float d = 1.0 - y / (float(tableHeight) / 2.0 - 1.0);
+        float d = 1.0 - y / (float(resMu) / 2.0 - 1.0);
         d = min(max(dhdH.z, d * dhdH.w), dhdH.w * 0.999);
         mu = (Rg * Rg - alt * alt - d * d) / (2.0 * alt * d);
         mu = min(mu, -sqrt(1.0 - (Rg / alt) * (Rg / alt)) - 0.001);
     }
-    else
+    else // bottom half
     {
-        float d = (y - float(tableHeight) / 2.0) / (float(tableHeight) / 2.0 - 1.0);
+        float d = (y - float(resMu) / 2.0) / (float(resMu) / 2.0 - 1.0);
         d = min(max(dhdH.x, d * dhdH.y), dhdH.y * 0.999);
         mu = (Rt * Rt - alt * alt - d * d) / (2.0 * alt * d);
     }
-    mus = mod(x, float(resMus)) / (float(resMus) - 1.0);
+    mus = mod(x, resMus) / (resMus - 1.0);
     // paper formula
     //mus = -(0.6 + log(1.0 - mus * (1.0 -  exp(-3.6)))) / 3.0;
     // better formula
     mus = tan((2.0 * mus - 1.0 + 0.26) * 1.1) / tan(1.26 * 1.1);
-    nu = -1.0 + floor(x / float(resMus)) / (float(resNu) - 1.0) * 2.0;
+    nu = -1.0 + floor(x / resMus) / (float(resNu - 1)) * 2.0;
 #else
-    mu = -1.0 + 2.0 * y / (float(tableHeight) - 1.0);
+    mu = -1.0 + 2.0 * y / (float(resMu) - 1.0);
     mus = mod(x, resMus) / (resMus - 1.0);
     mus = -0.2 + mus * 1.2;
     nu = -1.0 + floor(x / resMus) / (float(resNu) - 1.0) * 2.0;
 #endif
 
     return float3(mu, mus, nu);
+}
+
+float GetAlt(uint layer, uint layersCount)
+{
+    // TODO (DB): it calculates to layer-1 on the top altitude for some reason: 6416 instead of 6420
+    // floating value precision issues?
+    float eps = layer == 0 ? 0.01 : (layer == (layersCount - 1) ? -0.001 : 0.0);
+    float Rg2 = Rg * Rg;
+    float Rt2 = Rt * Rt;
+    
+    float alt = layer / float(layersCount - 1); // 0.0 - 1.0
+    alt = alt * alt;
+    alt = sqrt(Rg2 + alt * (Rt2 - Rg2)) + eps;
+    return alt;
 }
 
 float4 GetDhdH(float alt)

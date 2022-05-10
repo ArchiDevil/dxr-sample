@@ -15,7 +15,7 @@ float3 Integrate(float alt, float mu, float mus, float nu, float dist, uint tabl
 float3 Inscatter(float alt, float mu, float mus, float nu, uint tableWidth, uint resNu)
 {
     float3 raymie = float3(0, 0, 0);
-    float dx = IntersectAtmosphere(alt, mu) / float(INSCATTER_INTEGRAL_SAMPLES);
+    float dx = Limit(alt, mu) / float(INSCATTER_INTEGRAL_SAMPLES);
     float xi = 0.0;
     float3 raymiei = Integrate(alt, mu, mus, nu, 0.0, tableWidth, resNu);
     for (int i = 1; i <= INSCATTER_INTEGRAL_SAMPLES; ++i)
@@ -37,15 +37,10 @@ void CSMain(uint3 groupId : SV_GroupID)
     uint3 dims;
     deltaSR.GetDimensions(dims.x, dims.y, dims.z);
 
-    float u = groupId.x / float(dims.x);
-    float v = groupId.y / float(dims.y);
-
-    float alt = Rg;
-    alt += groupId.z * (groupId.z / float(dims.z));
-
+    float alt = GetAlt(groupId.z, dims.z);
     float4 dhdH = GetDhdH(alt);
-    float3 muMusNu = GetMuMusNu(alt, dhdH, u, v, dims.x, dims.y, resNu);
+    float3 muMusNu = GetMuMusNu(alt, dhdH, float(groupId.x), float(groupId.y), dims.x, dims.y, resNu);
     float3 result = Inscatter(alt, muMusNu.x, muMusNu.y, muMusNu.z, dims.y, resNu);
     
-    deltaSR[groupId] = float4(result, 1.0);
+    deltaSR[groupId] = float4(result, 0.0);
 }

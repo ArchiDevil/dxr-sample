@@ -17,5 +17,5 @@ void CSMain(uint3 groupId : SV_GroupID)
     float2 altMus = GetIrradianceAltMus(u, v);
 
     float3 attenuation = Transmittance(altMus.x, altMus.y, transmittanceMap);
-    deltaE[groupId.xy] = float4(attenuation * saturate(altMus.y), 0.0);
+    deltaE[groupId.xy] = float4(attenuation * max(altMus.y, 0.0), 0.0);
 }

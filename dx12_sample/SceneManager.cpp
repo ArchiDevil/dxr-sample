@@ -625,12 +625,15 @@ void SceneManager::PrecomputeTables()
     auto        device = _deviceResources->GetDevice();
     DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 
+    const UINT transmittanceMapWidth = 256;
+    const UINT transmittanceMapHeight = 64;
+
     const UINT inscatterMapWidth  = 256;
     const UINT inscatterMapHeight = 128;
     const UINT inscatterMapDepth  = 32;
 
-    const UINT irradianceMapWidth  = 64 * 4;
-    const UINT irradianceMapHeight = 16 * 4;
+    const UINT irradianceMapWidth  = 64;
+    const UINT irradianceMapHeight = 16;
 
     const int maxScatteringOrder = 4;
 
@@ -644,17 +647,47 @@ void SceneManager::PrecomputeTables()
     ComPtr<ID3D12Resource> deltaSM; // Mie scattering table
     ComPtr<ID3D12Resource> deltaJ;  // Sphere scattering table
 
+    // Create all needed resources
+    {
+        auto createUAV = [&device, format](ComPtr<ID3D12Resource>& resource, const wchar_t* name, UINT width,
+                                           UINT height, UINT depth = 1)
+        {
+            D3D12_RESOURCE_DESC texDesc = {};
+            texDesc.Width               = width;
+            texDesc.Height              = height;
+            texDesc.Dimension           = depth == 1 ? D3D12_RESOURCE_DIMENSION_TEXTURE2D : D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+            texDesc.Format              = format;
+            texDesc.MipLevels           = 1;
+            texDesc.DepthOrArraySize    = depth;
+            texDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+            texDesc.SampleDesc.Count    = 1;
+
+            D3D12_HEAP_PROPERTIES heapProps = {};
+            heapProps.Type                  = D3D12_HEAP_TYPE_DEFAULT;
+
+            ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
+                                                          D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                                          IID_PPV_ARGS(&resource)));
+            resource->SetName(name);
+        };
+
+        createUAV(transmittance, L"Transmittance", transmittanceMapWidth, transmittanceMapHeight);
+        createUAV(deltaSR, L"DeltaSR", inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
+        createUAV(deltaSM, L"DeltaSM", inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
+        createUAV(deltaJ, L"DeltaJ", inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
+        createUAV(_inscatterTable, L"Inscatter", inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
+        createUAV(deltaE, L"DeltaE", irradianceMapWidth, irradianceMapHeight);
+        createUAV(_irradianceTable, L"Irradiance", irradianceMapWidth, irradianceMapHeight);
+    }
+
     // Transmittance computing
     {
         PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Transmittance");
 
-        const UINT mapWidth  = 256;
-        const UINT mapHeight = 64;
-
         RootSignature rs;
         rs.Init(1, 0);
         rs[0].InitAsDescriptorsTable(1);
-        rs[0].InitTableRange(0, 0, 2, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+        rs[0].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
         rs.Finalize(device);
 
         auto                  content = ReadFileContent("TransmittanceCompute.cso");
@@ -672,32 +705,12 @@ void SceneManager::PrecomputeTables()
 
         DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
 
-        D3D12_RESOURCE_DESC texDesc = {};
-        texDesc.Width               = mapWidth;
-        texDesc.Height              = mapHeight;
-        texDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        texDesc.Format              = format;
-        texDesc.MipLevels           = 1;
-        texDesc.DepthOrArraySize    = 1;
-        texDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-        texDesc.SampleDesc.Count    = 1;
-
-        D3D12_HEAP_PROPERTIES heapProps = {};
-        heapProps.Type                  = D3D12_HEAP_TYPE_DEFAULT;
-
-        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
-                                                      IID_PPV_ARGS(&transmittance)));
-
-        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
-
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
         uavDesc.Format                           = format;
         uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
-        device->CreateUnorderedAccessView(transmittance.Get(), nullptr, &uavDesc, heapHandle.handle);
 
-        heapHandle = tempHeap.GetFreeCPUAddress();
-        device->CreateUnorderedAccessView(deltaE.Get(), nullptr, &uavDesc, heapHandle.handle);
+        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(transmittance.Get(), nullptr, &uavDesc, heapHandle.handle);
 
         CommandList cmdList{CommandListType::Direct, device, pso};
 
@@ -705,7 +718,7 @@ void SceneManager::PrecomputeTables()
         cmdList->SetDescriptorHeaps(1, &heap);
         cmdList->SetComputeRootSignature(rs.GetInternal().Get());
         cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0));
-        cmdList->Dispatch(mapWidth, mapHeight, 1);
+        cmdList->Dispatch(transmittanceMapWidth, transmittanceMapHeight, 1);
         cmdList.Close();
 
         ExecuteCommandList(cmdList);
@@ -735,28 +748,6 @@ void SceneManager::PrecomputeTables()
         ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
 
         DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
-
-        D3D12_RESOURCE_DESC texDesc = {};
-        texDesc.Width               = inscatterMapWidth;
-        texDesc.Height              = inscatterMapHeight;
-        texDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-        texDesc.Format              = format;
-        texDesc.MipLevels           = 1;
-        texDesc.DepthOrArraySize    = inscatterMapDepth;
-        texDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-        texDesc.SampleDesc.Count    = 1;
-
-        D3D12_HEAP_PROPERTIES heapProps = {};
-        heapProps.Type                  = D3D12_HEAP_TYPE_DEFAULT;
-
-        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaSR)));
-        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaSM)));
-        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaJ)));
-        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&_inscatterTable)));
 
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
         uavDesc.Format                           = format;
@@ -815,26 +806,6 @@ void SceneManager::PrecomputeTables()
 
         DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
 
-        D3D12_RESOURCE_DESC texDesc = {};
-        texDesc.Width               = irradianceMapWidth;
-        texDesc.Height              = irradianceMapHeight;
-        texDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-        texDesc.Format              = format;
-        texDesc.MipLevels           = 1;
-        texDesc.DepthOrArraySize    = 1;
-        texDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-        texDesc.SampleDesc.Count    = 1;
-
-        D3D12_HEAP_PROPERTIES heapProps = {};
-        heapProps.Type                  = D3D12_HEAP_TYPE_DEFAULT;
-
-        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaE)));
-
-        // this table is not needed here, creating it here because description structure is the same as for deltaE
-        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&_irradianceTable)));
-
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
         uavDesc.Format                           = format;
         uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
@@ -863,7 +834,7 @@ void SceneManager::PrecomputeTables()
     {
         PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Copy deltaE");
 
-        auto                  content = ReadFileContent("CopyInscatterCompute.cso");
+        auto                  content = ReadFileContent("CopyIrradianceCompute.cso");
         D3D12_SHADER_BYTECODE bc      = {};
         bc.BytecodeLength             = content.size();
         bc.pShaderBytecode            = content.data();
