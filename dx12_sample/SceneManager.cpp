@@ -625,8 +625,29 @@ void SceneManager::PrecomputeTables()
     auto        device = _deviceResources->GetDevice();
     DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 
+    const UINT inscatterMapWidth  = 256;
+    const UINT inscatterMapHeight = 128;
+    const UINT inscatterMapDepth  = 32;
+
+    const UINT irradianceMapWidth  = 64 * 4;
+    const UINT irradianceMapHeight = 16 * 4;
+
+    const int maxScatteringOrder = 4;
+
+    ComPtr<ID3D12PipelineState> copyDeltaEPso;
+    RootSignature               copyTextureRS;
+
+    // Temporary buffers (could be removed and put on a stack in PrecomputeTables()
+    ComPtr<ID3D12Resource> transmittance;
+    ComPtr<ID3D12Resource> deltaE;
+    ComPtr<ID3D12Resource> deltaSR; // Rayleigh scattering table
+    ComPtr<ID3D12Resource> deltaSM; // Mie scattering table
+    ComPtr<ID3D12Resource> deltaJ;  // Sphere scattering table
+
     // Transmittance computing
     {
+        PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Transmittance");
+
         const UINT mapWidth  = 256;
         const UINT mapHeight = 64;
 
@@ -666,17 +687,17 @@ void SceneManager::PrecomputeTables()
 
         ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
                                                       D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
-                                                      IID_PPV_ARGS(&_transmittance)));
+                                                      IID_PPV_ARGS(&transmittance)));
 
         FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
 
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
         uavDesc.Format                           = format;
         uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
-        device->CreateUnorderedAccessView(_transmittance.Get(), nullptr, &uavDesc, heapHandle.handle);
+        device->CreateUnorderedAccessView(transmittance.Get(), nullptr, &uavDesc, heapHandle.handle);
 
         heapHandle = tempHeap.GetFreeCPUAddress();
-        device->CreateUnorderedAccessView(_deltaE.Get(), nullptr, &uavDesc, heapHandle.handle);
+        device->CreateUnorderedAccessView(deltaE.Get(), nullptr, &uavDesc, heapHandle.handle);
 
         CommandList cmdList{CommandListType::Direct, device, pso};
 
@@ -692,9 +713,7 @@ void SceneManager::PrecomputeTables()
 
     // Single inscatter computing (delta SR, SM tables)
     {
-        const UINT mapWidth  = 256;
-        const UINT mapHeight = 128;
-        const UINT mapDepth  = 32;
+        PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Single inscatter (delta SR, SM)");
 
         auto                  content = ReadFileContent("SingleInscatterCompute.cso");
         D3D12_SHADER_BYTECODE bc      = {};
@@ -703,9 +722,8 @@ void SceneManager::PrecomputeTables()
 
         RootSignature rs;
         rs.Init(1, 0);
-        rs[0].InitAsDescriptorsTable(2);
-        rs[0].InitTableRange(0, 0, 2, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
-        rs[0].InitTableRange(1, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
+        rs[0].InitAsDescriptorsTable(1);
+        rs[0].InitTableRange(0, 0, 4, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
         rs.Finalize(device);
 
         D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {};
@@ -719,12 +737,12 @@ void SceneManager::PrecomputeTables()
         DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
 
         D3D12_RESOURCE_DESC texDesc = {};
-        texDesc.Width               = mapWidth;
-        texDesc.Height              = mapHeight;
+        texDesc.Width               = inscatterMapWidth;
+        texDesc.Height              = inscatterMapHeight;
         texDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
         texDesc.Format              = format;
         texDesc.MipLevels           = 1;
-        texDesc.DepthOrArraySize    = mapDepth;
+        texDesc.DepthOrArraySize    = inscatterMapDepth;
         texDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         texDesc.SampleDesc.Count    = 1;
 
@@ -732,30 +750,33 @@ void SceneManager::PrecomputeTables()
         heapProps.Type                  = D3D12_HEAP_TYPE_DEFAULT;
 
         ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&_deltaSR)));
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaSR)));
         ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&_deltaSM)));
-
-        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaSM)));
+        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaJ)));
+        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&_inscatterTable)));
 
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
         uavDesc.Format                           = format;
         uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE3D;
-        uavDesc.Texture3D.WSize                  = mapDepth;
-        device->CreateUnorderedAccessView(_deltaSR.Get(), nullptr, &uavDesc, heapHandle.handle);
+        uavDesc.Texture3D.WSize                  = inscatterMapDepth;
+
+        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(deltaSR.Get(), nullptr, &uavDesc, heapHandle.handle);
 
         heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(deltaSM.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+        heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(_inscatterTable.Get(), nullptr, &uavDesc, heapHandle.handle);
         
-        device->CreateUnorderedAccessView(_deltaSM.Get(), nullptr, &uavDesc, heapHandle.handle);
+        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+        uavDesc.Texture3D.WSize = 0;
 
         heapHandle = tempHeap.GetFreeCPUAddress();
-
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format                          = format;
-        srvDesc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MipLevels             = 1;
-        srvDesc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        device->CreateShaderResourceView(_transmittance.Get(), &srvDesc, heapHandle.handle);
+        device->CreateUnorderedAccessView(transmittance.Get(), nullptr, &uavDesc, heapHandle.handle);
 
         CommandList cmdList{CommandListType::Direct, device, pso};
 
@@ -763,7 +784,7 @@ void SceneManager::PrecomputeTables()
         cmdList->SetDescriptorHeaps(1, &heap);
         cmdList->SetComputeRootSignature(rs.GetInternal().Get());
         cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0));
-        cmdList->Dispatch(mapWidth, mapHeight, mapDepth);
+        cmdList->Dispatch(inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
         cmdList.Close();
 
         ExecuteCommandList(cmdList);
@@ -771,8 +792,7 @@ void SceneManager::PrecomputeTables()
 
     // Single irradiance computing (deltaE table)
     {
-        const UINT mapWidth  = 64;
-        const UINT mapHeight = 16;
+        PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Single irradiance (deltaE)");
 
         auto                  content = ReadFileContent("SingleIrradianceCompute.cso");
         D3D12_SHADER_BYTECODE bc      = {};
@@ -781,9 +801,8 @@ void SceneManager::PrecomputeTables()
 
         RootSignature rs;
         rs.Init(1, 0);
-        rs[0].InitAsDescriptorsTable(2);
-        rs[0].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
-        rs[0].InitTableRange(1, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
+        rs[0].InitAsDescriptorsTable(1);
+        rs[0].InitTableRange(0, 0, 2, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
         rs.Finalize(device);
 
         D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {};
@@ -797,8 +816,8 @@ void SceneManager::PrecomputeTables()
         DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
 
         D3D12_RESOURCE_DESC texDesc = {};
-        texDesc.Width               = mapWidth;
-        texDesc.Height              = mapHeight;
+        texDesc.Width               = irradianceMapWidth;
+        texDesc.Height              = irradianceMapHeight;
         texDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
         texDesc.Format              = format;
         texDesc.MipLevels           = 1;
@@ -810,23 +829,21 @@ void SceneManager::PrecomputeTables()
         heapProps.Type                  = D3D12_HEAP_TYPE_DEFAULT;
 
         ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&_deltaE)));
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&deltaE)));
 
-        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+        // this table is not needed here, creating it here because description structure is the same as for deltaE
+        ThrowIfFailed(device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
+                                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&_irradianceTable)));
 
         D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
         uavDesc.Format                           = format;
         uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
-        device->CreateUnorderedAccessView(_deltaE.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(deltaE.Get(), nullptr, &uavDesc, heapHandle.handle);
 
         heapHandle = tempHeap.GetFreeCPUAddress();
-
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format                          = format;
-        srvDesc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MipLevels             = 1;
-        srvDesc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        device->CreateShaderResourceView(_transmittance.Get(), &srvDesc, heapHandle.handle);
+        device->CreateUnorderedAccessView(transmittance.Get(), nullptr, &uavDesc, heapHandle.handle);
 
         CommandList cmdList{CommandListType::Direct, device, pso};
 
@@ -834,9 +851,217 @@ void SceneManager::PrecomputeTables()
         cmdList->SetDescriptorHeaps(1, &heap);
         cmdList->SetComputeRootSignature(rs.GetInternal().Get());
         cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0));
-        cmdList->Dispatch(mapWidth, mapHeight, 1);
+        cmdList->Dispatch(irradianceMapWidth, irradianceMapHeight, 1);
         cmdList.Close();
 
         ExecuteCommandList(cmdList);
+    }
+
+    // Copy deltaE to irradiance
+    // TODO (DB): is this first copy needed? Bruneton uses weird k = 0 for that one, it should not copy anything
+    // It needs further investigation
+    {
+        PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Copy deltaE");
+
+        auto                  content = ReadFileContent("CopyInscatterCompute.cso");
+        D3D12_SHADER_BYTECODE bc      = {};
+        bc.BytecodeLength             = content.size();
+        bc.pShaderBytecode            = content.data();
+
+        copyTextureRS.Init(2, 0);
+        copyTextureRS[0].InitAsDescriptorsTable(1);
+        copyTextureRS[0].InitTableRange(0, 0, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+        copyTextureRS[1].InitAsDescriptorsTable(1);
+        copyTextureRS[1].InitTableRange(0, 1, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+        copyTextureRS.Finalize(device);
+
+        D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {};
+        desc.CS                                = bc;
+        desc.Flags                             = D3D12_PIPELINE_STATE_FLAG_NONE;
+        desc.pRootSignature                    = copyTextureRS.GetInternal().Get();
+
+        ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&copyDeltaEPso)));
+
+        DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+        uavDesc.Format                           = format;
+        uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE2D;
+
+        FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(_irradianceTable.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+        heapHandle = tempHeap.GetFreeCPUAddress();
+        device->CreateUnorderedAccessView(deltaE.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+        CommandList cmdList{CommandListType::Direct, device, copyDeltaEPso};
+
+        auto heap = tempHeap.GetResource().Get();
+        cmdList->SetDescriptorHeaps(1, &heap);
+        cmdList->SetComputeRootSignature(copyTextureRS.GetInternal().Get());
+        cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0));
+        cmdList->SetComputeRootDescriptorTable(1, tempHeap.GetGPUAddress(1));
+        cmdList->Dispatch(irradianceMapWidth, irradianceMapHeight, 1);
+        cmdList.Close();
+
+        ExecuteCommandList(cmdList);
+    }
+
+    // now it is time to calculate multiple orders of the scrattering (2 -> 4)
+    {
+        PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Higher scattering orders");
+        ComPtr<ID3D12PipelineState> deltaJPso;
+        RootSignature               deltaJRS;
+        ComPtr<ID3D12PipelineState> deltaEPso;
+        RootSignature               deltaERS;
+        ComPtr<ID3D12PipelineState> deltaSRPso;
+        RootSignature               deltaSRRS;
+        ComPtr<ID3D12PipelineState> copyDeltaSRPso;
+
+        {
+            // create loop states
+            auto                  content = ReadFileContent("SphereInscatterCompute.cso");
+            D3D12_SHADER_BYTECODE bc      = {};
+            bc.BytecodeLength             = content.size();
+            bc.pShaderBytecode            = content.data();
+
+            deltaJRS.Init(3, 0);
+            deltaJRS[0].InitAsDescriptorsTable(1);
+            deltaJRS[0].InitTableRange(0, 0, 3, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+            deltaJRS[1].InitAsDescriptorsTable(1);
+            deltaJRS[1].InitTableRange(0, 3, 2, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+            deltaJRS[2].InitAsConstants(1, 0);
+            deltaJRS.Finalize(device);
+
+            D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {};
+            desc.CS                                = bc;
+            desc.pRootSignature                    = deltaJRS.GetInternal().Get();
+
+            ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&deltaJPso)));
+
+            content            = ReadFileContent("SphereIrradianceCompute.cso");
+            bc                 = {};
+            bc.BytecodeLength  = content.size();
+            bc.pShaderBytecode = content.data();
+
+            deltaERS.Init(3, 0);
+            deltaERS[0].InitAsDescriptorsTable(1);
+            deltaERS[0].InitTableRange(0, 0, 2, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+            deltaERS[1].InitAsDescriptorsTable(1);
+            deltaERS[1].InitTableRange(0, 2, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+            deltaERS[2].InitAsConstants(1, 0);
+            deltaERS.Finalize(device);
+
+            desc.CS             = bc;
+            desc.pRootSignature = deltaERS.GetInternal().Get();
+
+            ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&deltaEPso)));
+
+            content = ReadFileContent("SphereNInscatterCompute.cso");
+            bc = {};
+            bc.BytecodeLength = content.size();
+            bc.pShaderBytecode = content.data();
+
+            deltaSRRS.Init(2, 0);
+            deltaSRRS[0].InitAsDescriptorsTable(1);
+            deltaSRRS[0].InitTableRange(0, 0, 2, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+            deltaSRRS[1].InitAsDescriptorsTable(1);
+            deltaSRRS[1].InitTableRange(0, 2, 1, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+            deltaSRRS.Finalize(device);
+
+            desc.CS = bc;
+            desc.pRootSignature = deltaSRRS.GetInternal().Get();
+
+            ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&deltaSRPso)));
+
+            content = ReadFileContent("CopyInscatterCompute.cso");
+            bc = {};
+            bc.BytecodeLength = content.size();
+            bc.pShaderBytecode = content.data();
+
+            desc.CS = bc;
+            desc.pRootSignature = copyTextureRS.GetInternal().Get();
+
+            ThrowIfFailed(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&copyDeltaSRPso)));
+        }
+        {
+            DescriptorHeap tempHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 16);
+
+            D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+            uavDesc.Format                           = format;
+            uavDesc.ViewDimension                    = D3D12_UAV_DIMENSION_TEXTURE3D;
+            uavDesc.Texture3D.WSize                  = inscatterMapDepth;
+
+            FreeAddress<D3D12_CPU_DESCRIPTOR_HANDLE> heapHandle = tempHeap.GetFreeCPUAddress();
+            device->CreateUnorderedAccessView(deltaSM.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+            heapHandle = tempHeap.GetFreeCPUAddress();
+            device->CreateUnorderedAccessView(deltaSR.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+            heapHandle = tempHeap.GetFreeCPUAddress();
+            device->CreateUnorderedAccessView(deltaJ.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+            heapHandle = tempHeap.GetFreeCPUAddress();
+            device->CreateUnorderedAccessView(_inscatterTable.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+            uavDesc.ViewDimension   = D3D12_UAV_DIMENSION_TEXTURE2D;
+            uavDesc.Texture3D.WSize = 0;
+
+            heapHandle = tempHeap.GetFreeCPUAddress();
+            device->CreateUnorderedAccessView(transmittance.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+            heapHandle = tempHeap.GetFreeCPUAddress();
+            device->CreateUnorderedAccessView(deltaE.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+            heapHandle = tempHeap.GetFreeCPUAddress();
+            device->CreateUnorderedAccessView(_irradianceTable.Get(), nullptr, &uavDesc, heapHandle.handle);
+
+            for (int i = 2; i <= maxScatteringOrder; ++i)
+            {
+                PIXScopedEvent(_deviceResources->GetCommandQueue().Get(), 0, "Order %d", i);
+
+                int first = i == 2 ? 1 : 0;  // used to apply phase functions
+
+                CommandList cmdList{ CommandListType::Direct, device };
+
+                auto heap = tempHeap.GetResource().Get();
+                cmdList->SetPipelineState(deltaJPso.Get());
+                cmdList->SetDescriptorHeaps(1, &heap);
+                cmdList->SetComputeRootSignature(deltaJRS.GetInternal().Get());
+                cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0));
+                cmdList->SetComputeRootDescriptorTable(1, tempHeap.GetGPUAddress(4)); // transmittance
+                cmdList->SetComputeRoot32BitConstant(2, first, 0);
+                cmdList->Dispatch(inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
+
+                cmdList->SetPipelineState(deltaEPso.Get());
+                cmdList->SetComputeRootSignature(deltaERS.GetInternal().Get());
+                cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(0)); // delta SM/SR
+                cmdList->SetComputeRootDescriptorTable(1, tempHeap.GetGPUAddress(5)); // deltaE
+                cmdList->SetComputeRoot32BitConstant(2, first, 0);
+                cmdList->Dispatch(irradianceMapWidth, irradianceMapHeight, 1);
+
+                cmdList->SetPipelineState(deltaSRPso.Get());
+                cmdList->SetComputeRootSignature(deltaSRRS.GetInternal().Get());
+                cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(1)); // delta SR/J
+                cmdList->SetComputeRootDescriptorTable(1, tempHeap.GetGPUAddress(4)); // transmittance
+                cmdList->Dispatch(inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
+
+                cmdList->SetPipelineState(copyDeltaEPso.Get());
+                cmdList->SetComputeRootSignature(copyTextureRS.GetInternal().Get());
+                cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(6)); // irradiance
+                cmdList->SetComputeRootDescriptorTable(1, tempHeap.GetGPUAddress(5)); // deltaE
+                cmdList->Dispatch(irradianceMapWidth, irradianceMapHeight, 1);
+
+                cmdList->SetPipelineState(copyDeltaSRPso.Get());
+                cmdList->SetComputeRootSignature(copyTextureRS.GetInternal().Get());
+                cmdList->SetComputeRootDescriptorTable(0, tempHeap.GetGPUAddress(3)); // inscatter
+                cmdList->SetComputeRootDescriptorTable(1, tempHeap.GetGPUAddress(1)); // deltaSR
+                cmdList->Dispatch(inscatterMapWidth, inscatterMapHeight, inscatterMapDepth);
+
+                cmdList.Close();
+
+                ExecuteCommandList(cmdList);
+            }
+        }
     }
 }

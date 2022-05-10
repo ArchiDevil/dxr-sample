@@ -2,7 +2,7 @@
 
 RWTexture2D<float4> transmittanceMap : register(u0);
 
-float DensityOverPath(in float scaleHeight, in float alt, in float mu)
+float DensityOverPath(float scaleHeight, float alt, float mu)
 {
     // if ray below horizon return max density
     float cosHorizon = -sqrt(1.0f - ((Rg * Rg) / (alt * alt)));

@@ -1,51 +1,9 @@
 #include "Common.hlsl"
 
-RWTexture3D<float4> deltaSR : register(u0); // rayleigh delta table
-RWTexture3D<float4> deltaSM : register(u1); // mie delta table
-RWTexture3D<float4> inscatter : register(u2); // final table
-Texture2D transmittanceMap : register(t0);
-
-float mod(float x, float y)
-{
-    return x - y * floor(x / y);
-}
-
-float3 GetMuMuSNu(float r, float4 dhdH, float u, float v, uint tableWidth, uint tableHeight, uint resNu)
-{
-    float x = u * float(tableWidth);
-    float y = v * tableHeight;
-    float resMus = tableWidth / resNu;
-    
-    float mu, mus, nu;
-
-    if (y < float(tableHeight) / 2.0)
-    {
-        float d = 1.0 - y / (float(tableHeight) / 2.0 - 1.0);
-        d = min(max(dhdH.z, d * dhdH.w), dhdH.w * 0.999);
-        mu = (Rg * Rg - r * r - d * d) / (2.0 * r * d);
-        mu = min(mu, -sqrt(1.0 - (Rg / r) * (Rg / r)) - 0.001);
-    }
-    else
-    {
-        float d = (y - float(tableHeight) / 2.0) / (float(tableHeight) / 2.0 - 1.0);
-        d = min(max(dhdH.x, d * dhdH.y), dhdH.y * 0.999);
-        mu = (Rt * Rt - r * r - d * d) / (2.0 * r * d);
-    }
-    mus = mod(x, float(resMus)) / (float(resMus) - 1.0);
-    // paper formula
-    //mus = -(0.6 + log(1.0 - mus * (1.0 -  exp(-3.6)))) / 3.0;
-    // better formula
-    mus = tan((2.0 * mus - 1.0 + 0.26) * 1.1) / tan(1.26 * 1.1);
-    nu = -1.0 + floor(x / float(resMus)) / (float(resNu) - 1.0) * 2.0;
-
-    return float3(mu, mus, nu);
-}
-
-float3 Transmittance(float alt, float mu, float dist, Texture2D transmittanceMap)
-{
-    float alt_i = sqrt(alt * alt + dist * dist + 2.0 * dist * alt * mu);
-    return Transmittance(alt_i, mu, transmittanceMap).rgb;
-}
+RWTexture3D<float4> deltaSR          : register(u0); // rayleigh delta table
+RWTexture3D<float4> deltaSM          : register(u1); // mie delta table
+RWTexture3D<float4> inscatter        : register(u2); // final table
+RWTexture2D<float4> transmittanceMap : register(u3); // precomputed transmittance map (READ)
 
 void Integrate(in float alt, in float mu, in float mus, in float nu,
                in float dist, out float3 ray, out float3 mie)
@@ -103,7 +61,7 @@ void Inscatter(float alt, float mu, float mus, float nu,
 void CSMain(uint3 groupId : SV_GroupID)
 {
     uint3 dims;
-    deltaSR.GetDimensions(dims.x, dims.y, dims.z); // both output have the same dimensions
+    deltaSR.GetDimensions(dims.x, dims.y, dims.z); // all outputs have the same dimensions
 
     float u = (float) groupId.x / dims.x;
     float v = (float) groupId.y / dims.y;
@@ -118,16 +76,11 @@ void CSMain(uint3 groupId : SV_GroupID)
     float alt = layer / (altLayers - 1.0);
     alt = alt * alt;
     alt = sqrt(Rg * Rg + alt * (Rt * Rt - Rg * Rg)) + (layer == 0 ? 0.01 : (layer == altLayers - 1 ? -0.001 : 0.0));
-
-    float dmin = Rt - alt;
-    float dmax = sqrt(alt * alt - Rg * Rg) + sqrt(Rt * Rt - Rg * Rg);
-    float dminp = alt - Rg;
-    float dmaxp = sqrt(alt * alt - Rg * Rg);
-    float4 dhdH = float4(dmin, dmax, dminp, dmaxp);
-
-    float3 muMusNu = GetMuMuSNu(alt, dhdH, u, v, tableWidth, tableHeight, resNu);
+    float4 dhdH = GetDhdH(alt);
 
     float3 ray, mie;
+    float3 muMusNu = GetMuMusNu(alt, dhdH, u, v, tableWidth, tableHeight, resNu);
+
     Inscatter(alt, muMusNu.x, muMusNu.y, muMusNu.z, ray, mie);
 
     deltaSR[groupId] = float4(ray, 1.0);

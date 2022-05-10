@@ -1,7 +1,7 @@
 #include "Common.hlsl"
 
-RWTexture2D<float4> deltaE : register(u0);
-Texture2D transmittanceMap : register(t0);
+RWTexture2D<float4> deltaE           : register(u0);
+RWTexture2D<float4> transmittanceMap : register(u1);
 
 // This shader calculates a single irradiance that is needed later to calculate multisampled irradiance map
 // The intermediate map for that is called deltaE

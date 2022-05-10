@@ -1,13 +1,18 @@
 set(FILES
     Dummy.cpp
     Common.h # HLSL <-> C++ translation
-    Sample.hlsl # main library
+    Sample.hlsl # DXR library
 )
 
-set(SCATTERING_SHADERS
+set(SCATTERING_SHADERS # these shaders are used to precompute scattering tables
     Scattering/SingleInscatterCompute.hlsl
     Scattering/SingleIrradianceCompute.hlsl
     Scattering/TransmittanceCompute.hlsl
+    Scattering/CopyIrradianceCompute.hlsl
+    Scattering/CopyInscatterCompute.hlsl
+    Scattering/SphereInscatterCompute.hlsl
+    Scattering/SphereIrradianceCompute.hlsl
+    Scattering/SphereNInscatterCompute.hlsl
 )
 
 add_library(shaders STATIC ${FILES} ${SCATTERING_SHADERS})
@@ -17,7 +22,7 @@ set_source_files_properties(Sample.hlsl
         VS_SHADER_MODEL "6.3"
         VS_SHADER_TYPE "Library"
         VS_SHADER_ENTRYPOINT ""
-        VS_SHADER_FLAGS "/Zpr /WX" # for row-major matrices
+        VS_SHADER_FLAGS "/Zpr /WX /all_resources_bound" # for row-major matrices
 )
 
 foreach(SHADER IN LISTS SCATTERING_SHADERS)
@@ -26,7 +31,7 @@ foreach(SHADER IN LISTS SCATTERING_SHADERS)
             VS_SHADER_MODEL "6.0"
             VS_SHADER_TYPE "Compute"
             VS_SHADER_ENTRYPOINT "CSMain"
-            VS_SHADER_FLAGS "/Zpr /WX" # for row-major matrices
+            VS_SHADER_FLAGS "/Zpr /WX /all_resources_bound" # for row-major matrices
     )
 endforeach()
 
@@ -36,6 +41,11 @@ set(OUTPUT_FILES
         TransmittanceCompute.cso
         SingleInscatterCompute.cso
         SingleIrradianceCompute.cso
+        CopyIrradianceCompute.cso
+        CopyInscatterCompute.cso
+        SphereInscatterCompute.cso
+        SphereIrradianceCompute.cso
+        SphereNInscatterCompute.cso
 )
 
 foreach(OFILE IN LISTS OUTPUT_FILES)

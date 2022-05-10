@@ -132,9 +132,4 @@ private:
     ComPtr<ID3D12Resource> _inscatterTable;
     ComPtr<ID3D12Resource> _irradianceTable;
 
-    // Temporary buffers (could be removed and put on a stack in PrecomputeTables()
-    ComPtr<ID3D12Resource> _transmittance;
-    ComPtr<ID3D12Resource> _deltaE;
-    ComPtr<ID3D12Resource> _deltaSR; // Rayleigh scattering table
-    ComPtr<ID3D12Resource> _deltaSM; // Mie scattering table
 };
