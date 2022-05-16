@@ -91,6 +91,9 @@ void SceneManager::SetAmbientColor(float r, float g, float b)
 
 void SceneManager::UpdateWindowSize(UINT screenWidth, UINT screenHeight)
 {
+    if (screenHeight == 0 || screenWidth == 0)
+        return;
+
     if (_screenHeight == screenHeight && _screenWidth == screenWidth)
         return;
 
